@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 use arboard::{Clipboard, ImageData};
 use enigo::{
     Direction::{Click, Press, Release},

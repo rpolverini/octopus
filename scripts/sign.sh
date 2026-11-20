@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Firma ad-hoc con un requisito que depende solo del identificador, no del hash del binario:
 # así macOS conserva el permiso de Accesibilidad entre compilaciones.
 # shortcut: cualquier binario con este identificador pasa el requisito, para dev local; con certificado propio/Developer ID, reemplazar.

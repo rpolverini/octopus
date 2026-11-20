@@ -425,8 +425,8 @@ tauri = { version = "2.12.7", features = ["tray-icon"] }</code></pre>
 <ul>
   <li><strong>Revisá la política de tu empleador.</strong> El proyecto se hizo en una máquina de trabajo. Verificá tu contrato sobre propiedad intelectual y proyectos personales, y publicalo desde tu cuenta personal, no la corporativa.</li>
   <li><strong>Secretos y datos personales:</strong> la config real vive fuera del repo (en la carpeta de configuración del sistema), así que no hay nada para filtrar. Igual, antes del primer commit, revisá con <code>git status</code> y <code>git diff --cached</code> que no entre ningún texto personal de ejemplo.</li>
-  <li><strong>Licencia:</strong> la recomendación es <code>MIT OR Apache-2.0</code>, que es lo que usa la mayor parte del ecosistema Rust (incluidas las dependencias de este proyecto, según lo que se declara en cada crate; conviene confirmarlo con <code>cargo deny</code> o <code>cargo about</code>). Quien use el código elige la que prefiera: MIT es la más simple, y Apache-2.0 suma una concesión explícita de patentes. Se publica con dos archivos, <code>LICENSE-MIT</code> y <code>LICENSE-APACHE</code>. Si preferís que las mejoras queden libres también, las alternativas son MPL-2.0 o GPL-3.0. Sin licencia, legalmente nadie puede reutilizar el código.</li>
-  <li><strong>El pulpo:</strong> la imagen que se usa de mascota y de ícono es un recurso aparte del código. Aclará quién la hizo y con qué licencia se comparte (por ejemplo CC BY 4.0), y si se generó con una herramienta de IA, decilo en el README.</li>
+  <li><strong>Licencia:</strong> <code>GPL-3.0-or-later</code>, una licencia de <button type="button" class="term" popovertarget="t-copyleft">copyleft</button>. Se eligió para que octopus y todas sus versiones derivadas sigan siendo libres: quien lo modifique y lo distribuya tiene que hacerlo con el código abierto y bajo la misma licencia. <strong>Usarlo no obliga a nada</strong>, tampoco dentro de una empresa; las obligaciones aparecen al distribuir. El texto completo está en <code>LICENSE</code> y cada archivo de código lleva la etiqueta <code>SPDX-License-Identifier</code>. Las dependencias son compatibles: de las 267 que entran en una compilación para macOS, casi todas son MIT, Apache-2.0, BSD, Zlib o Unicode, y cinco son MPL-2.0, que también se puede combinar con GPL-3.0. <strong>Las que solo se usan en Windows y Linux no se verificaron.</strong> Se eligió la versión 3 y no la 2 porque Apache-2.0, que usan muchas dependencias, solo es compatible con la 3. Conviene volver a revisar las licencias con <code>cargo deny</code> o <code>cargo about</code>.</li>
+  <li><strong>El pulpo:</strong> la licencia GPL cubre el código. La imagen que se usa de mascota y de ícono es un recurso aparte, y <strong>hoy no tiene licencia definida</strong>, así que el proyecto no es del todo libre hasta resolverlo. Aclará quién la hizo y con qué licencia se comparte (por ejemplo CC BY 4.0), y si se generó con una herramienta de IA, decilo en el README.</li>
 </ul>
 
 <h3>Qué debería tener el repositorio</h3>
@@ -434,7 +434,7 @@ tauri = { version = "2.12.7", features = ["tray-icon"] }</code></pre>
 <thead><tr><th>Archivo</th><th>Para qué</th></tr></thead>
 <tbody>
 <tr><td><code>README.md</code></td><td>Qué hace, una captura o GIF, cómo instalarlo, permisos que pide y por qué, limitaciones conocidas (Wayland, AltGr), cómo compilarlo.</td></tr>
-<tr><td><code>LICENSE</code></td><td>La licencia elegida.</td></tr>
+<tr><td><code>LICENSE</code></td><td>El texto completo de la GPL-3.0. Ya está en el repo.</td></tr>
 <tr><td><code>CHANGELOG.md</code></td><td>Cambios por versión (formato <em>Keep a Changelog</em>).</td></tr>
 <tr><td><code>SECURITY.md</code></td><td>Cómo reportar una vulnerabilidad. Relevante porque la app simula teclado y toca el portapapeles.</td></tr>
 <tr><td><code>CONTRIBUTING.md</code></td><td>Cómo correr los tests y qué se espera de un PR.</td></tr>
@@ -523,6 +523,7 @@ npx @tauri-apps/cli@2 icon assets/octopus.png -o icons
 <div popover id="t-dependabot" aria-label="Dependabot"><strong class="pt">Dependabot</strong><p><b>Qué es.</b> Un bot de GitHub que abre PRs cuando una dependencia tiene versión nueva o una vulnerabilidad conocida.</p><p><b>Por qué acá.</b> Con decenas de crates indirectos, mantener Cargo.lock al día a mano no escala. El CI valida cada PR antes de aceptarlo.</p></div>
 <div popover id="t-cargo" aria-label="Cargo y crates"><strong class="pt">Cargo y crates</strong><p><b>Qué es.</b> Cargo es el gestor de paquetes y herramienta de compilación de Rust: baja dependencias, compila, corre tests y formatea. Las dependencias se llaman crates.</p><p><b>Por qué acá.</b> Cargo.toml lista lo que querés y Cargo.lock fija las versiones exactas, así que con un solo comando (cargo run) el proyecto compila igual en cualquier máquina.</p></div>
 
+<div popover id="t-copyleft" aria-label="Copyleft"><strong class="pt">Copyleft</strong><p><b>Qué es.</b> Una licencia que permite usar, estudiar y modificar el código, y exige que las versiones modificadas que se distribuyan mantengan la misma licencia y el código abierto. La GPL es el ejemplo más conocido.</p><p><b>Por qué acá.</b> Garantiza que octopus y sus derivados sigan siendo libres. El uso interno, incluso en una empresa, no dispara ninguna obligación: solo la distribución.</p></div>
 <footer>Escrita por Claude para una persona que recién empieza con Rust. Describe el estado del repo al momento de escribirla. Si el código cambia, conviene actualizarla junto con él.</footer>
 </main>
 </div>
