@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>octopus</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: oklch(98.6% 0.004 20);
+    --panel: oklch(96.5% 0.006 20);
+    --ink: oklch(25% 0.012 20);
+    --muted: oklch(48% 0.014 20);
+    --line: oklch(90% 0.008 20);
+    --hover: oklch(93% 0.008 20);
+    --accent: oklch(55% 0.19 10);
+    --accent-hover: oklch(50% 0.19 10);
+    --accent-ink: oklch(99% 0 0);
+    --accent-text: oklch(50% 0.19 10);
+    --accent-soft: oklch(94% 0.035 10);
+    --danger: oklch(50% 0.19 28);
+    --ok: oklch(45% 0.12 155);
+    --radius: 6px;
+    font: 13px/1.4 system-ui, -apple-system, "SF Pro Text", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: oklch(21% 0.008 20);
+      --panel: oklch(25% 0.01 20);
+      --ink: oklch(94% 0.005 20);
+      --muted: oklch(72% 0.012 20);
+      --line: oklch(34% 0.01 20);
+      --hover: oklch(29% 0.01 20);
+      --accent-text: oklch(76% 0.14 10);
+      --accent-soft: oklch(30% 0.06 10);
+      --danger: oklch(74% 0.15 28);
+      --ok: oklch(76% 0.13 155);
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body { margin: 0; display: flex; flex-direction: column; background: var(--bg); color: var(--ink); caret-color: var(--accent); }
+  ::selection { background: var(--accent-soft); color: var(--ink); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button, input { font: inherit; color: var(--ink); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+  /* header */
+  header { display: flex; align-items: center; gap: 10px; padding: 10px 20px; background: var(--panel); flex-wrap: wrap; }
+  header img { width: 28px; height: 28px; }
+  h1 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
+  .meta { margin-left: auto; display: flex; align-items: center; gap: 16px; color: var(--muted); flex-wrap: wrap; }
+  .meta label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  .meta input { accent-color: var(--accent); margin: 0; }
+
+  kbd { display: inline-block; min-width: 22px; padding: 1px 6px; text-align: center; font-size: 12px; line-height: 1.5;
+        background: var(--bg); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; color: var(--ink); }
+  .keys { display: inline-flex; gap: 3px; vertical-align: middle; }
+
+  /* buttons */
+  .btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; background: var(--bg);
+         border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer;
+         transition: background-color .15s ease-out, border-color .15s ease-out, color .15s ease-out; }
+  .btn:hover:not(:disabled) { background: var(--hover); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .btn.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+  .btn.accent { border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+  .btn.accent:hover:not(:disabled) { background: var(--accent-soft); }
+  .btn.armed { border-color: var(--danger); color: var(--danger); font-weight: 600; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .icon { width: 28px; height: 28px; padding: 0; justify-content: center; border-color: transparent; background: none; color: var(--muted); }
+
+  /* tabs */
+  #tabs { display: flex; gap: 2px; padding: 0 20px; background: var(--panel); border-bottom: 1px solid var(--line); overflow-x: auto; }
+  .tab { display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; background: none; border: 0; border-bottom: 2px solid transparent;
+         margin-bottom: -1px; color: var(--muted); cursor: pointer; white-space: nowrap; transition: color .15s ease-out; }
+  .tab:hover { color: var(--ink); }
+  .tab[aria-selected="true"] { color: var(--ink); font-weight: 600; border-bottom-color: var(--accent); }
+  .tab .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .tab-input { margin: 4px 0; width: 130px; height: 28px; padding: 0 8px; background: var(--bg); border: 1px solid var(--accent); border-radius: var(--radius); }
+
+  /* template bar */
+  #plantbar { display: flex; align-items: center; gap: 8px; padding: 10px 20px; }
+  #status { margin-right: auto; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  #status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; }
+  #status .dot.off { background: none; border: 1.5px solid var(--muted); }
+
+  /* table */
+  main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .tablewrap { flex: 1; overflow: auto; padding: 0 20px; }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+  th { position: sticky; top: 0; z-index: 1; background: var(--bg); text-align: left; padding: 6px 8px; font-size: 12px; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--line); }
+  th:nth-child(1) { width: 200px; }
+  th:nth-child(4) { width: 40px; }
+  td { padding: 5px 4px; vertical-align: top; border-bottom: 1px solid var(--line); }
+  td input[type=text] { width: 100%; height: 30px; padding: 0 8px; background: transparent; border: 1px solid transparent; border-radius: var(--radius); transition: border-color .15s ease-out, background-color .15s ease-out; }
+  td input[type=text]:hover { border-color: var(--line); }
+  td input[type=text]:focus { outline: none; background: var(--bg); border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  ::placeholder { color: var(--muted); opacity: 1; }
+  .combo { display: flex; align-items: center; gap: 3px; width: 100%; min-height: 30px; padding: 2px 6px; text-align: left; background: none; border: 1px solid transparent; border-radius: var(--radius); cursor: pointer; transition: border-color .15s ease-out, background-color .15s ease-out; }
+  .combo:hover { border-color: var(--line); }
+  .combo.blank { border: 1px dashed var(--line); color: var(--muted); }
+  .combo.rec { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }
+  .note { min-height: 0; padding: 2px 6px 0; font-size: 12px; color: var(--muted); }
+  .note.err { color: var(--danger); }
+  tr.bad .combo { border-color: var(--danger); }
+
+  .empty { max-width: 46ch; margin: 36px auto; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .empty img { width: 72px; height: 72px; }
+  .empty h2 { margin: 0; font-size: 15px; font-weight: 650; }
+  .empty p { margin: 0; color: var(--muted); }
+
+  footer { display: flex; align-items: center; gap: 12px; padding: 10px 20px; background: var(--panel); border-top: 1px solid var(--line); }
+  #msg { flex: 1; min-height: 1.4em; color: var(--muted); }
+  #msg.ok { color: var(--ok); }
+  #msg.err { color: var(--danger); }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header>
+  <img src="octopus.png" alt="">
+  <h1>octopus</h1>
+  <div class="meta">
+    <span>Abrir esta ventana: <span class="keys" id="open"></span></span>
+    <label><input type="checkbox" id="auto"> Iniciar con el sistema</label>
+  </div>
+</header>
+
+<div id="tabs" role="tablist" aria-label="Plantillas"></div>
+
+<main>
+  <div id="plantbar">
+    <div id="status"></div>
+    <button type="button" class="btn accent" id="activate">Activar</button>
+    <button type="button" class="btn" id="rename">Renombrar</button>
+    <button type="button" class="btn" id="del">Borrar</button>
+  </div>
+  <div class="tablewrap">
+    <table id="grid">
+      <thead><tr><th>Atajo</th><th>Texto que se pega</th><th>Descripción</th><th><span class="sr">Borrar</span></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty" id="empty" hidden>
+      <img src="octopus.png" alt="">
+      <h2>Esta plantilla todavía no tiene atajos</h2>
+      <p>Cada atajo pega un texto fijo en cualquier app: grabás una combinación, escribís el texto y listo.</p>
+      <button type="button" class="btn primary" id="first">Agregar el primer atajo</button>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <button type="button" class="btn" id="add"><svg viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg>Agregar atajo</button>
+  <div id="msg" role="status" aria-live="polite"></div>
+  <button type="button" class="btn primary" id="save" title="Guardar (⌘S)" disabled>Guardar</button>
+</footer>
+
+<script>
+const { invoke } = window.__TAURI__.core;
+const $ = id => document.getElementById(id);
+const rows = $('rows');
+const isMac = /Mac/i.test(navigator.platform || navigator.userAgent);
+const MODS = isMac ? { Ctrl: '⌃', Alt: '⌥', Shift: '⇧', Cmd: '⌘' } : { Ctrl: 'Ctrl', Alt: 'Alt', Shift: 'Shift', Cmd: 'Win' };
+const KEYS = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Space: 'Espacio', Minus: '-', Equal: '=', Comma: ',', Period: '.', Slash: '/', Semicolon: ';', Quote: "'", Backquote: '`', Backslash: '\\', BracketLeft: '[', BracketRight: ']' };
+const TRASH = '<svg viewBox="0 0 16 16"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.5 8.5h6l.5-8.5"/></svg>';
+let cfg, cur = 0, openCombo = '', dirty = false, serverErrors = {}, msgTimer, armed;
+
+/* ---------- helpers ---------- */
+function keycaps(combo) {
+  const f = document.createDocumentFragment();
+  combo.split('+').forEach(p => { const k = document.createElement('kbd'); k.textContent = MODS[p] || KEYS[p] || p; f.append(k); });
+  return f;
+}
+
+function say(text, kind = '') {
+  clearTimeout(msgTimer);
+  const m = $('msg'); m.textContent = text; m.className = kind;
+  if (kind === 'ok') msgTimer = setTimeout(() => { if (m.className === 'ok') say(''); }, 3000);
+}
+
+function setDirty(v) {
+  dirty = v; $('save').disabled = !v;
+  if (v && $('msg').className !== 'err') say('Hay cambios sin guardar');
+}
+
+function keyName(e) { // usamos code para que Option+E no devuelva "´"
+  if (e.code.startsWith('Key')) return e.code.slice(3);
+  if (e.code.startsWith('Digit')) return e.code.slice(5);
+  return e.code; // F1, Space, ArrowUp, etc.
+}
+
+/* ---------- filas ---------- */
+function setCombo(tr, combo) {
+  const b = tr.querySelector('.combo');
+  tr.dataset.combo = combo;
+  b.replaceChildren();
+  b.classList.toggle('blank', !combo);
+  b.setAttribute('aria-label', combo ? 'Cambiar atajo' : 'Grabar atajo');
+  if (combo) b.append(keycaps(combo)); else b.textContent = 'Grabar atajo';
+}
+
+function note(tr, text, err) {
+  const n = tr.querySelector('.note');
+  n.textContent = text || ''; n.className = 'note' + (err ? ' err' : '');
+  tr.classList.toggle('bad', !!err);
+}
+
+function markRowErrors() {
+  const counts = {};
+  [...rows.children].forEach(tr => { const c = tr.dataset.combo; if (c) counts[c] = (counts[c] || 0) + 1; });
+  [...rows.children].forEach(tr => {
+    if (tr.querySelector('.combo.rec')) return;
+    const c = tr.dataset.combo;
+    if (c && c === openCombo) note(tr, 'Reservado para abrir octopus', true);
+    else if (c && counts[c] > 1) note(tr, 'Repetido en esta plantilla', true);
+    else if (c && serverErrors[c]) note(tr, serverErrors[c], true);
+    else note(tr, '');
+  });
+}
+
+function record(tr) {
+  const b = tr.querySelector('.combo'), prev = tr.dataset.combo;
+  b.classList.add('rec'); b.classList.remove('blank'); b.replaceChildren(); b.textContent = 'Apretá las teclas…';
+  note(tr, 'Esc cancela');
+  const stop = () => {
+    b.classList.remove('rec'); setCombo(tr, tr.dataset.combo);
+    removeEventListener('keydown', on, true); b.removeEventListener('blur', stop);
+    markRowErrors();
+  };
+  const on = e => {
+    e.preventDefault(); e.stopPropagation();
+    if (e.key === 'Escape') { tr.dataset.combo = prev; return stop(); }
+    if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return;
+    const mods = [e.ctrlKey && 'Ctrl', e.altKey && 'Alt', e.shiftKey && 'Shift', e.metaKey && 'Cmd'].filter(Boolean);
+    if (!mods.length) return note(tr, 'Sumá Ctrl, Alt o Cmd (si no, pisaría el teclado normal)', true);
+    tr.dataset.combo = [...mods, keyName(e)].join('+');
+    setDirty(true); stop();
+  };
+  addEventListener('keydown', on, true);
+  b.addEventListener('blur', stop);
+}
+
+function addRow(en = { combo: '', text: '', desc: '' }) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td><button type="button" class="combo"></button><div class="note"></div></td>
+    <td><input type="text" class="text" aria-label="Texto que se pega" placeholder="Lo que querés pegar"></td>
+    <td><input type="text" class="desc" aria-label="Descripción" placeholder="Para qué sirve (es solo para vos)"></td>
+    <td><button type="button" class="btn icon del" aria-label="Borrar atajo" title="Borrar atajo">${TRASH}</button></td>`;
+  setCombo(tr, en.combo);
+  tr.querySelector('.text').value = en.text;
+  tr.querySelector('.desc').value = en.desc;
+  tr.querySelector('.combo').onclick = () => record(tr);
+  tr.querySelector('.del').onclick = () => { tr.remove(); setDirty(true); syncEmpty(); markRowErrors(); };
+  rows.append(tr);
+  return tr;
+}
+
+function newShortcut() {
+  const tr = addRow(); syncEmpty(); tr.scrollIntoView({ block: 'nearest' }); record(tr); tr.querySelector('.combo').focus();
+}
+
+function syncEmpty() {
+  const none = !rows.children.length;
+  $('grid').hidden = none; $('empty').hidden = !none; $('add').hidden = none;
+}
+
+// Vuelca lo que se ve en pantalla a la plantilla actual.
+function collect() {
+  cfg.profiles[cur].entries = [...rows.children].map(tr => ({
+    combo: tr.dataset.combo, text: tr.querySelector('.text').value, desc: tr.querySelector('.desc').value,
+  })).filter(e => e.combo || e.text);
+}
+
+/* ---------- plantillas ---------- */
+function render() {
+  rows.replaceChildren();
+  cfg.profiles[cur].entries.forEach(e => addRow(e));
+  syncEmpty(); renderTabs(); markRowErrors();
+}
+
+function selectTab(i, focus) {
+  collect(); cur = i; render();
+  if (focus) document.querySelector('.tab[aria-selected="true"]')?.focus();
+}
+
+function renderTabs() {
+  const box = $('tabs'); box.replaceChildren();
+  cfg.profiles.forEach((p, i) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'tab'; b.setAttribute('role', 'tab');
+    b.setAttribute('aria-selected', i === cur); b.tabIndex = i === cur ? 0 : -1;
+    if (i === cfg.active) {
+      const d = document.createElement('span'); d.className = 'dot'; b.append(d);
+      const s = document.createElement('span'); s.className = 'sr'; s.textContent = 'Activa: '; b.append(s);
+    }
+    b.append(document.createTextNode(p.name));
+    b.onclick = () => { if (i !== cur) selectTab(i); };
+    b.ondblclick = () => rename(i);
+    b.onkeydown = e => {
+      const n = { ArrowRight: i + 1, ArrowLeft: i - 1 }[e.key];
+      if (n >= 0 && n < cfg.profiles.length) { e.preventDefault(); selectTab(n, true); }
+    };
+    box.append(b);
+  });
+  const plus = document.createElement('button');
+  plus.type = 'button'; plus.className = 'tab'; plus.title = 'Nueva plantilla'; plus.setAttribute('aria-label', 'Nueva plantilla');
+  plus.innerHTML = '<svg viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg>';
+  plus.onclick = () => {
+    collect(); cfg.profiles.push({ name: `Plantilla ${cfg.profiles.length + 1}`, entries: [] });
+    cur = cfg.profiles.length - 1; setDirty(true); render(); rename(cur);
+  };
+  box.append(plus);
+  renderBar();
+}
+
+function renderBar() {
+  const on = cur === cfg.active, st = $('status');
+  st.replaceChildren();
+  const d = document.createElement('span'); d.className = 'dot' + (on ? '' : ' off'); st.append(d);
+  st.append(document.createTextNode(on ? 'Plantilla activa: sus atajos funcionan en cualquier app.' : 'Inactiva: sus atajos no funcionan hasta que la actives.'));
+  $('activate').hidden = on;
+  $('activate').title = 'Activar guarda todos los cambios';
+}
+
+function rename(i) {
+  const tab = $('tabs').children[i], p = cfg.profiles[i];
+  const inp = document.createElement('input');
+  inp.type = 'text'; inp.className = 'tab-input'; inp.value = p.name; inp.setAttribute('aria-label', 'Nombre de la plantilla');
+  let done = false;
+  const finish = commit => {
+    if (done) return; done = true;
+    const v = inp.value.trim();
+    if (commit && v && v !== p.name) { p.name = v; setDirty(true); }
+    renderTabs(); $('tabs').children[i]?.focus();
+  };
+  inp.onblur = () => finish(true);
+  inp.onkeydown = e => { if (e.key === 'Enter') finish(true); else if (e.key === 'Escape') finish(false); };
+  tab.replaceWith(inp); inp.focus(); inp.select();
+}
+
+/* ---------- guardar ---------- */
+async function save(okText) {
+  collect(); serverErrors = {};
+  try {
+    await invoke('save_config', { config: cfg });
+    setDirty(false); say(okText, 'ok');
+  } catch (err) {
+    // Errores de registro ("Ctrl+Alt+E: ...") vienen con la config ya guardada; cualquier otro es un fallo real.
+    const lines = String(err).split('\n');
+    const reg = lines.filter(l => /^(?:(?:Ctrl|Alt|Shift|Cmd)\+)+\S+: /.test(l));
+    if (reg.length && reg.length === lines.length) {
+      reg.forEach(l => { const i = l.indexOf(': '); serverErrors[l.slice(0, i)] = l.slice(i + 2); });
+      setDirty(false);
+      say(`Guardado, pero ${reg.length === 1 ? 'un atajo no se pudo registrar' : reg.length + ' atajos no se pudieron registrar'}. Revisá las filas marcadas.`, 'err');
+    } else say(`No se pudo guardar: ${err}`, 'err');
+  }
+  markRowErrors();
+}
+
+/* ---------- eventos ---------- */
+rows.addEventListener('input', () => setDirty(true));
+$('add').onclick = newShortcut;
+$('first').onclick = newShortcut;
+$('save').onclick = () => save('Guardado');
+$('activate').onclick = () => { cfg.active = cur; renderTabs(); save(`"${cfg.profiles[cur].name}" quedó activa`); };
+$('rename').onclick = () => rename(cur);
+
+$('del').onclick = () => {
+  const btn = $('del');
+  if (cfg.profiles.length === 1) return say('Tiene que quedar al menos una plantilla', 'err');
+  if (!armed) { // confirm() no anda en el webview: confirmamos con un segundo click
+    btn.textContent = '¿Seguro? Borrar'; btn.classList.add('armed');
+    armed = setTimeout(disarm, 3000);
+    return;
+  }
+  disarm();
+  cfg.profiles.splice(cur, 1);
+  if (cfg.active === cur) cfg.active = 0; else if (cfg.active > cur) cfg.active--;
+  cur = Math.min(cur, cfg.profiles.length - 1);
+  setDirty(true); render();
+};
+function disarm() { clearTimeout(armed); armed = null; $('del').textContent = 'Borrar'; $('del').classList.remove('armed'); }
+$('del').onblur = disarm;
+
+$('auto').onchange = async e => {
+  try { await invoke('set_autostart', { on: e.target.checked }); say(e.target.checked ? 'Va a iniciar con el sistema' : 'Ya no inicia con el sistema', 'ok'); }
+  catch (err) { e.target.checked = !e.target.checked; say(String(err), 'err'); }
+};
+
+addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); if (!$('save').disabled) save('Guardado'); }
+});
+
+/* ---------- arranque ---------- */
+invoke('open_combo').then(c => { openCombo = c; $('open').append(keycaps(c)); markRowErrors(); });
+invoke('get_autostart').then(on => $('auto').checked = on);
+invoke('get_config').then(c => { cfg = c; cur = c.active; render(); });
+</script>
+</html>

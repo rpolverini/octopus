@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CI/CD de octopus: cómo y por qué</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: oklch(98.6% 0.004 20);
+    --panel: oklch(96.5% 0.006 20);
+    --ink: oklch(25% 0.012 20);
+    --muted: oklch(46% 0.014 20);
+    --line: oklch(89% 0.008 20);
+    --accent: oklch(50% 0.19 10);
+    --accent-soft: oklch(94% 0.035 10);
+    --ok: oklch(42% 0.12 155);
+    --warn: oklch(46% 0.12 70);
+    --code-bg: oklch(95.5% 0.006 20);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: oklch(21% 0.008 20);
+      --panel: oklch(25% 0.01 20);
+      --ink: oklch(94% 0.005 20);
+      --muted: oklch(73% 0.012 20);
+      --line: oklch(34% 0.01 20);
+      --accent: oklch(76% 0.14 10);
+      --accent-soft: oklch(30% 0.06 10);
+      --ok: oklch(76% 0.13 155);
+      --warn: oklch(78% 0.12 75);
+      --code-bg: oklch(18% 0.008 20);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); }
+  ::selection { background: var(--accent-soft); }
+  a { color: var(--accent); text-underline-offset: 3px; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .layout { display: grid; grid-template-columns: 1fr; max-width: 1180px; margin: 0 auto; padding: 0 20px; }
+  @media (min-width: 960px) { .layout { grid-template-columns: 230px minmax(0, 1fr); gap: 56px; } }
+
+  nav { padding: 24px 0; font-size: 14px; }
+  @media (min-width: 960px) { nav { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow: auto; } }
+  nav strong { display: block; margin-bottom: 8px; }
+  nav ol { margin: 0; padding: 0; list-style: none; }
+  nav a { display: block; padding: 3px 0; color: var(--muted); text-decoration: none; }
+  nav a:hover { color: var(--accent); }
+
+  main { padding: 24px 0 96px; min-width: 0; }
+  .hero { display: flex; gap: 20px; align-items: center; padding-bottom: 8px; }
+  .hero img { width: 88px; height: 88px; flex: none; }
+  h1 { margin: 0; font-size: 2rem; line-height: 1.15; letter-spacing: -0.02em; text-wrap: balance; }
+  .sub { margin: 6px 0 0; color: var(--muted); }
+  h2 { margin: 56px 0 8px; padding-top: 8px; font-size: 1.45rem; line-height: 1.2; letter-spacing: -0.01em; text-wrap: balance; }
+  h3 { margin: 32px 0 4px; font-size: 1.05rem; }
+  p, li { max-width: 72ch; }
+  p { margin: 10px 0; }
+  ul, ol { padding-left: 1.3em; }
+  li { margin: 4px 0; }
+
+  code { font: 0.88em ui-monospace, "SF Mono", Menlo, Consolas, monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  pre { margin: 14px 0; padding: 14px 16px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; line-height: 1.5; }
+  pre code { background: none; padding: 0; font-size: 13px; }
+  .file { display: block; margin: 18px 0 -6px; font-size: 13px; color: var(--muted); }
+
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14.5px; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  th { font-size: 13px; color: var(--muted); font-weight: 600; }
+  td:first-child { white-space: nowrap; }
+  .tablewrap { overflow-x: auto; }
+
+  .note { margin: 16px 0; padding: 12px 14px; background: var(--accent-soft); border-radius: 8px; max-width: 72ch; }
+  .note p { margin: 4px 0; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+
+  .flow { counter-reset: s; list-style: none; padding: 0; margin: 18px 0; display: grid; gap: 8px; max-width: 72ch; }
+  .flow li { counter-increment: s; display: grid; grid-template-columns: 32px 1fr; gap: 12px; align-items: start; margin: 0; padding: 10px 12px; background: var(--panel); border-radius: 8px; }
+  .flow li::before { content: counter(s); display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--bg); font-weight: 700; font-size: 13px; }
+
+  .term { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: help; text-decoration: underline dotted var(--accent); text-underline-offset: 4px; text-decoration-thickness: 1.5px; }
+  .term:hover { color: var(--accent); }
+  .term code { background: none; padding: 0; }
+  [popover] { position: fixed; inset: auto; margin: 0; width: min(360px, calc(100vw - 24px)); padding: 14px 16px; background: var(--panel); color: var(--ink);
+              border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 28px oklch(0% 0 0 / .22), 0 2px 6px oklch(0% 0 0 / .12); font-size: 14px; line-height: 1.5; }
+  [popover] p { margin: 6px 0 0; }
+  [popover] .pt { display: block; font-size: 15px; margin-bottom: 2px; }
+  [popover] b { color: var(--accent); }
+  .glossary-title { display: none; }
+  @supports not selector(:popover-open) { .glossary-title { display: block; } [popover] { position: static; width: auto; margin: 12px 0; } }
+  footer { margin-top: 64px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+</style>
+
+<div class="layout">
+<nav aria-label="Índice">
+  <strong>Contenido</strong>
+  <ol>
+    <li><a href="#que">1. Qué es y qué problema resuelve</a></li>
+    <li><a href="#mapa">2. Qué archivos intervienen</a></li>
+    <li><a href="#flujos">3. Los dos flujos</a></li>
+    <li><a href="#ci">4. ci.yml explicado</a></li>
+    <li><a href="#release">5. release.yml explicado</a></li>
+    <li><a href="#decisiones">6. Decisiones y por qué</a></li>
+    <li><a href="#seguridad">7. Seguridad</a></li>
+    <li><a href="#limites">8. Qué no hace todavía</a></li>
+    <li><a href="#usar">9. Cómo usarlo</a></li>
+    <li><a href="#falla">10. Si falla</a></li>
+    <li><a href="#ejercicios">11. Ejercicios</a></li>
+  </ol>
+  <p style="margin-top:16px"><a href="aprendiendoRUST.html">← Curso de Rust</a></p>
+</nav>
+
+<main>
+<div class="hero">
+  <img src="ui/octopus.png" alt="">
+  <div>
+    <h1>CI/CD de octopus: cómo y por qué</h1>
+    <p class="sub">Qué automatizamos con GitHub Actions, qué se decidió en cada paso y qué todavía no sabemos. Es la segunda parte del <a href="aprendiendoRUST.html">curso de Rust</a>.</p>
+  </div>
+</div>
+<p class="sub">Los términos con subrayado punteado se explican al tocarlos.</p>
+
+<div class="note"><p><strong>Estado, con honestidad.</strong> Los dos workflows están escritos y son sintácticamente válidos, pero <strong>todavía no corrieron en GitHub</strong>. Nunca se compiló octopus en Windows ni en Linux, así que es esperable que la primera ejecución muestre fallos. Los escribió Claude para alguien que recién empieza con Rust y con GitHub Actions: leelos con ojo crítico.</p></div>
+
+<h2 id="que">1. Qué es y qué problema resuelve</h2>
+<p>Son dos ideas distintas que suelen nombrarse juntas:</p>
+<ul>
+  <li><strong>CI (<button type="button" class="term" popovertarget="t-ci">integración continua</button>):</strong> cada vez que alguien cambia el código, un servidor limpio lo compila y lo prueba solo. Responde "¿este cambio rompió algo?" sin depender de la máquina de nadie.</li>
+  <li><strong>CD (<button type="button" class="term" popovertarget="t-cd">entrega continua</button>):</strong> armar los instaladores de forma automática y dejarlos listos para publicar.</li>
+</ul>
+<p>El problema concreto de octopus: <strong>solo se probó en una Mac</strong>. Prometer Windows y Linux sin compilar ahí sería adivinar. Y los instaladores de otros sistemas no se pueden generar desde una Mac de forma práctica. Un servidor de GitHub con cada sistema resuelve las dos cosas a la vez.</p>
+<p>Lo nuestro es <em>entrega</em> y no <em>despliegue</em> continuo: el resultado es un <button type="button" class="term" popovertarget="t-draft">release en borrador</button> y una persona decide cuándo publicarlo.</p>
+
+<h2 id="mapa">2. Qué archivos intervienen</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Archivo</th><th>Rol</th></tr></thead>
+<tbody>
+<tr><td><code>.github/workflows/ci.yml</code></td><td>Verificación en cada cambio.</td></tr>
+<tr><td><code>.github/workflows/release.yml</code></td><td>Instaladores al subir una etiqueta de versión.</td></tr>
+<tr><td><code>tauri.conf.json</code></td><td><code>"targets": "all"</code> decide qué formatos genera cada sistema, y <code>version</code> es una de las tres versiones que tienen que coincidir.</td></tr>
+<tr><td><code>Cargo.toml</code></td><td>Otra de las tres versiones.</td></tr>
+<tr><td><code>Cargo.lock</code></td><td>Fija las dependencias exactas, así el servidor compila lo mismo que tu máquina.</td></tr>
+<tr><td><code>icons/</code></td><td>El empaquetado los necesita en cada sistema (<code>.icns</code>, <code>.ico</code>, PNG).</td></tr>
+</tbody></table></div>
+
+<h2 id="flujos">3. Los dos flujos</h2>
+<p><strong>Flujo A: verificar</strong>, en cada push a <code>main</code>/<code>master</code> y en cada PR.</p>
+<ol class="flow">
+  <li><div>Se revisa el <strong>formato</strong> con <button type="button" class="term" popovertarget="t-rustfmt"><code>cargo fmt --check</code></button>, en un trabajo aparte que dura segundos.</div></li>
+  <li><div>En paralelo, <strong>macOS, Windows y Linux</strong> compilan y corren <button type="button" class="term" popovertarget="t-clippy"><code>clippy</code></button> (los avisos cuentan como error).</div></li>
+  <li><div>Cada sistema corre los <strong>tests</strong>.</div></li>
+  <li><div>GitHub marca el commit o el PR con verde o rojo, por sistema.</div></li>
+</ol>
+<p><strong>Flujo B: publicar</strong>, al subir una etiqueta como <code>v0.1.0</code>.</p>
+<ol class="flow">
+  <li><div>Un trabajo comprueba que la <strong>etiqueta, <code>Cargo.toml</code> y <code>tauri.conf.json</code></strong> tengan la misma versión. Si no, corta antes de gastar tiempo en compilar.</div></li>
+  <li><div>Cuatro trabajos en paralelo: <strong>macOS Apple Silicon, macOS Intel, Windows y Linux</strong>.</div></li>
+  <li><div>Cada uno compila la app y genera sus instaladores con <code>tauri-action</code>.</div></li>
+  <li><div>Todos los instaladores se suben a <strong>un mismo release en borrador</strong>. Vos lo revisás y lo publicás.</div></li>
+</ol>
+
+<h2 id="ci">4. ci.yml explicado</h2>
+<span class="file">.github/workflows/ci.yml</span>
+<pre><code>name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fmt:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --check
+
+  check:
+    name: check (${{ matrix.os }})
+    strategy:
+      fail-fast: false # que un sistema roto no tape el resultado de los otros
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencias de Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libxdo-dev \
+            libayatana-appindicator3-dev librsvg2-dev libssl-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test</code></pre>
+<div class="tablewrap"><table>
+<thead><tr><th>Fragmento</th><th>Qué hace</th><th>Por qué</th></tr></thead>
+<tbody>
+<tr><td><code>on: push / pull_request</code></td><td>Corre en cada push a esas ramas y en cada PR.</td><td>El push cubre lo que ya está integrado; el PR avisa <em>antes</em> de mezclar. Se listan <code>main</code> y <code>master</code> porque el repo todavía no definió cuál usa.</td></tr>
+<tr><td><code>concurrency</code></td><td>Si llega un push nuevo a la misma rama, cancela la corrida anterior.</td><td>Ahorra minutos y evita mirar resultados de un commit que ya quedó viejo.</td></tr>
+<tr><td>Trabajo <code>fmt</code></td><td>Solo revisa el formato, en Linux.</td><td>Es lo más barato y lo más probable de fallar. No hace falta repetirlo en tres sistemas: el formato no cambia con el sistema.</td></tr>
+<tr><td><button type="button" class="term" popovertarget="t-matrix"><code>matrix</code></button> de tres sistemas</td><td>Repite el mismo trabajo en <code>ubuntu-22.04</code>, <code>windows-latest</code> y <code>macos-latest</code>.</td><td>Es el motivo de todo el CI: octopus tiene código distinto por sistema (<code>#[cfg]</code>) y solo se probó en uno.</td></tr>
+<tr><td><code>fail-fast: false</code></td><td>Si falla un sistema, los otros siguen.</td><td>Queremos ver <em>todos</em> los problemas de una vez, no descubrirlos de a uno.</td></tr>
+<tr><td>Dependencias de Linux</td><td>Instala WebKitGTK, libxdo, appindicator y otras con <code>apt</code>, solo si <code>runner.os == 'Linux'</code>.</td><td>Tauri y <code>enigo</code> las necesitan para compilar en Linux. En Windows y macOS ya viene todo.</td></tr>
+<tr><td><code>ubuntu-22.04</code> en vez de <code>ubuntu-latest</code></td><td>Fija la versión de Ubuntu.</td><td>Tauri 2 necesita <code>webkit2gtk-4.1</code>, que está en esta versión. Fijarla evita que el CI cambie solo cuando GitHub actualiza "latest". Y compilar en una versión más vieja hace que el resultado ande en más distribuciones.</td></tr>
+<tr><td><code>dtolnay/rust-toolchain@stable</code></td><td>Instala Rust estable, más <code>clippy</code> o <code>rustfmt</code> según el trabajo.</td><td>Es la forma más usada de preparar Rust en Actions. El proyecto usa la edición 2024, que pide Rust reciente.</td></tr>
+<tr><td><button type="button" class="term" popovertarget="t-cache"><code>Swatinem/rust-cache</code></button></td><td>Guarda las dependencias ya compiladas entre corridas.</td><td>Tauri tiene muchas dependencias. Sin caché, cada corrida recompila todo desde cero.</td></tr>
+<tr><td><code>cargo clippy --all-targets -- -D warnings</code></td><td>Corre <code>clippy</code> sobre el código y los tests, y trata cualquier aviso como error.</td><td>Un aviso que nadie mira se acumula. Con <code>-D warnings</code> el rojo obliga a decidir. El costo está en la sección 6.</td></tr>
+<tr><td><code>cargo test</code></td><td>Corre los tests en cada sistema.</td><td>Hoy son dos y no dependen del sistema, pero así nacen listos cuando haya tests específicos por sistema.</td></tr>
+</tbody></table></div>
+
+<h2 id="release">5. release.yml explicado</h2>
+<span class="file">.github/workflows/release.yml</span>
+<pre><code>name: Release
+
+# Se dispara al subir una etiqueta de versión, por ejemplo: git tag v0.1.0 &amp;&amp; git push --tags
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  version:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: La etiqueta, Cargo.toml y tauri.conf.json tienen que coincidir
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          cargo_v=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          conf_v=$(grep -m1 '"version"' tauri.conf.json | cut -d'"' -f4)
+          echo "etiqueta=$tag  Cargo.toml=$cargo_v  tauri.conf.json=$conf_v"
+          [ "$tag" = "$cargo_v" ] &amp;&amp; [ "$tag" = "$conf_v" ]
+
+  release:
+    needs: version
+    permissions:
+      contents: write # para crear el release y subir los instaladores
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, target: aarch64-apple-darwin }
+          - { os: macos-latest, target: x86_64-apple-darwin }
+          - { os: ubuntu-22.04, target: "" }
+          - { os: windows-latest, target: "" }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencias de Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libxdo-dev \
+            libayatana-appindicator3-dev librsvg2-dev libssl-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # el proyecto no tiene package.json: usamos el CLI de Tauri vía npx (Node ya viene en los runners)
+          tauriScript: npx --yes @tauri-apps/cli@2
+          args: ${{ matrix.target &amp;&amp; format('--target {0}', matrix.target) || '' }}
+          tagName: ${{ github.ref_name }}
+          releaseName: octopus ${{ github.ref_name }}
+          releaseDraft: true # queda como borrador: lo revisás y lo publicás a mano
+          releaseBody: |
+            Instaladores sin firmar, así que el sistema muestra una advertencia la primera vez.
+            - macOS: click derecho sobre la app, Abrir. Después hay que darle permiso de Accesibilidad.
+            - Windows: SmartScreen, Más información, Ejecutar de todos modos.
+            - Linux: los atajos globales solo funcionan en sesiones X11 (no en Wayland).</code></pre>
+<div class="tablewrap"><table>
+<thead><tr><th>Fragmento</th><th>Qué hace</th><th>Por qué</th></tr></thead>
+<tbody>
+<tr><td><code>on: push: tags: ["v*"]</code></td><td>Corre cuando se sube una <button type="button" class="term" popovertarget="t-tag">etiqueta</button> que empieza con <code>v</code>.</td><td>La etiqueta es la decisión humana de "esta versión sale". Un push común no genera instaladores.</td></tr>
+<tr><td>Trabajo <code>version</code></td><td>Compara etiqueta, <code>Cargo.toml</code> y <code>tauri.conf.json</code>.</td><td>La versión vive en tres lugares y es fácil olvidar uno. Sin esta barrera saldría un instalador llamado <code>0.1.0</code> dentro de un release <code>v0.2.0</code>.</td></tr>
+<tr><td><code>${GITHUB_REF_NAME#v}</code></td><td>Le saca la <code>v</code> inicial al nombre de la etiqueta.</td><td>La etiqueta es <code>v0.1.0</code> pero en los archivos la versión es <code>0.1.0</code>.</td></tr>
+<tr><td><code>grep … | cut …</code></td><td>Extrae la versión del <code>Cargo.toml</code> y del JSON con herramientas básicas de shell.</td><td>Evita instalar nada para una comparación de tres textos. Funciona porque ambos archivos tienen la versión en una sola línea; si se reformatean, hay que revisarlo.</td></tr>
+<tr><td><code>needs: version</code></td><td>El release espera a que el chequeo pase.</td><td>Falla rápido y barato, antes de gastar minutos de compilación.</td></tr>
+<tr><td><code>permissions: contents: write</code></td><td>Le da al trabajo permiso de escritura sobre el repo.</td><td>Hace falta para crear el release y subir archivos. Se declara en este trabajo y no en todo el archivo: el principio de <button type="button" class="term" popovertarget="t-minimo">permisos mínimos</button>.</td></tr>
+<tr><td><code>matrix.include</code> con cuatro entradas</td><td>Define combinaciones de sistema y destino.</td><td>En macOS hacen falta dos, porque hay Macs Apple Silicon e Intel y cada uno necesita su binario. Windows y Linux usan el destino por defecto del runner.</td></tr>
+<tr><td><code>targets:</code> en el toolchain</td><td>Instala el destino de Rust que se va a usar.</td><td>El runner de macOS es Apple Silicon; para compilar la versión Intel hay que agregar ese destino.</td></tr>
+<tr><td><code>tauri-apps/tauri-action</code></td><td>Compila, genera los instaladores y los sube al release.</td><td>Es la acción oficial del proyecto: sabe qué formatos genera cada sistema y cómo adjuntarlos. La alternativa es escribir esos pasos a mano.</td></tr>
+<tr><td><code>tauriScript: npx --yes @tauri-apps/cli@2</code></td><td>Le dice cómo ejecutar el CLI de Tauri.</td><td>El proyecto no tiene <code>package.json</code>. Así lo usamos también en la máquina local. <strong>No está probado dentro de la acción</strong>; la alternativa más lenta es <code>cargo install tauri-cli</code>.</td></tr>
+<tr><td><code>args: ${{ … &amp;&amp; … || '' }}</code></td><td>Agrega <code>--target X</code> solo cuando la entrada tiene un destino.</td><td>Una sola línea sirve para las cuatro entradas de la matriz. Un texto vacío cuenta como "falso" en esa expresión.</td></tr>
+<tr><td><code>releaseDraft: true</code></td><td>Crea el release como borrador.</td><td>Nadie ve los instaladores hasta que los revisás y los publicás. Es la red de seguridad de un proceso que todavía no probamos.</td></tr>
+<tr><td><code>releaseBody</code></td><td>Texto del release con avisos.</td><td>Los instaladores no están firmados y el sistema lo va a mostrar. Mejor avisar que dejar al usuario desconcertado.</td></tr>
+</tbody></table></div>
+
+<h2 id="decisiones">6. Decisiones y por qué</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Decisión</th><th>Alternativa</th><th>Por qué esta</th></tr></thead>
+<tbody>
+<tr><td>GitHub Actions</td><td>Jenkins, GitLab CI, CircleCI</td><td>El código va a estar en GitHub, es gratis para repos públicos y no hay servidor que mantener.</td></tr>
+<tr><td>CI y release en archivos separados</td><td>Un solo archivo</td><td>Se disparan por motivos distintos y tienen permisos distintos. El de CI nunca necesita escribir en el repo.</td></tr>
+<tr><td>El CI no genera instaladores</td><td>Empaquetar en cada push</td><td>Empaquetar es lento y no aporta información que <code>clippy</code> y los tests no den. Se empaqueta solo al publicar.</td></tr>
+<tr><td><code>clippy -D warnings</code></td><td>Dejar los avisos como avisos</td><td>Mantiene el código limpio desde el principio. <strong>El costo:</strong> como usamos Rust <code>stable</code>, una versión nueva de Rust puede traer un aviso nuevo y poner el CI en rojo sin que cambie nada del código. Si molesta, se fija la versión de Rust o se relaja esta regla.</td></tr>
+<tr><td>Tres sistemas en el CI</td><td>Solo Linux (el más barato)</td><td>El código tiene ramas por sistema. Compilar solo en Linux no probaría las de Windows y macOS.</td></tr>
+<tr><td>Release en borrador</td><td>Publicar directo</td><td>El flujo no está probado. Un borrador permite descartar una corrida mala sin que nadie la haya visto.</td></tr>
+<tr><td>Chequeo de versión</td><td>Confiar en acordarse</td><td>Es un error fácil y caro de cometer, y se detecta con cuatro líneas de shell.</td></tr>
+<tr><td>Etiquetas mayores en las acciones (<code>@v4</code>)</td><td>Fijarlas por <button type="button" class="term" popovertarget="t-pin">hash de commit</button></td><td>Es más simple de leer y se actualiza sola con cambios menores. Es menos seguro: si alguien compromete una acción, recibimos el cambio. Fijar por hash y usar Dependabot es la mejora natural.</td></tr>
+<tr><td>Sin firma de código</td><td>Certificados de Apple y Windows</td><td>Cuestan dinero y trámite, y es un MVP. A cambio hay avisos del sistema al instalar, ya documentados en el release.</td></tr>
+<tr><td>Sin <code>--locked</code> en cargo</td><td><code>cargo test --locked</code></td><td>Es una omisión, no una decisión. Con <code>--locked</code> el CI falla si <code>Cargo.lock</code> no está actualizado; conviene agregarlo.</td></tr>
+</tbody></table></div>
+
+<h2 id="seguridad">7. Seguridad</h2>
+<ul>
+  <li><strong>Permisos mínimos:</strong> solo el trabajo de release puede escribir en el repo, y el CI corre sin ese permiso.</li>
+  <li><strong>Sin secretos propios:</strong> solo se usa el <code>GITHUB_TOKEN</code> que GitHub genera para cada corrida y expira solo. Nada que filtrar.</li>
+  <li><strong>Acciones de terceros:</strong> <code>dtolnay/rust-toolchain</code>, <code>Swatinem/rust-cache</code> y <code>tauri-apps/tauri-action</code> corren con acceso al código. Son proyectos muy usados, pero hay que tratarlas como dependencias y no solo como configuración.</li>
+  <li><strong>PRs de terceros:</strong> en un repo público, los PRs de forks corren con permisos reducidos y sin secretos. Con esta configuración eso es suficiente, porque el CI no usa ninguno.</li>
+</ul>
+
+<h2 id="limites">8. Qué no hace todavía</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Falta</th><th>Consecuencia</th></tr></thead>
+<tbody>
+<tr><td>No se ejecutó ni una vez</td><td>No sabemos si compila en Windows y Linux. Es la principal incógnita.</td></tr>
+<tr><td>No prueba la app en funcionamiento</td><td>El CI compila y corre tests unitarios, pero no abre la ventana ni aprieta un atajo. Eso sigue siendo manual y por sistema.</td></tr>
+<tr><td>Los instaladores no están firmados</td><td>Gatekeeper en macOS y SmartScreen en Windows van a avisar. En macOS, además, cada versión nueva pide de nuevo el permiso de Accesibilidad.</td></tr>
+<tr><td>Linux solo en X11</td><td>Los atajos globales no funcionan en Wayland. El CI no puede detectar eso: compilar no es lo mismo que funcionar.</td></tr>
+<tr><td>Sin Dependabot ni <code>cargo audit</code></td><td>Nadie avisa si una dependencia tiene una vulnerabilidad o una versión nueva.</td></tr>
+<tr><td>Sin protección de rama</td><td>Que el CI esté en rojo no impide mezclar. Eso se configura en GitHub, no en el archivo.</td></tr>
+</tbody></table></div>
+
+<h2 id="usar">9. Cómo usarlo</h2>
+<h3>Reproducir el CI en tu máquina</h3>
+<p>Antes de subir un cambio, corré lo mismo que corre el servidor. Si pasa acá, pasa allá (al menos en tu sistema):</p>
+<pre><code>cargo fmt --check
+cargo clippy --all-targets -- -D warnings
+cargo test</code></pre>
+
+<h3>Sacar una versión</h3>
+<pre><code># 1. subir la versión en Cargo.toml y en tauri.conf.json (tienen que coincidir)
+# 2. commit y push
+git commit -am "Versión 0.1.0"
+git push
+
+# 3. crear la etiqueta y subirla: esto dispara release.yml
+git tag v0.1.0
+git push --tags
+
+# 4. esperar los cuatro trabajos (pestaña Actions) y revisar el borrador en Releases
+# 5. publicarlo a mano</code></pre>
+
+<h3>Si la corrida sale mal</h3>
+<pre><code># borrar la etiqueta local y la remota, corregir, y volver a etiquetar
+git tag -d v0.1.0
+git push --delete origin v0.1.0</code></pre>
+<p>Y descartar el release en borrador desde GitHub. Para la primera prueba conviene una etiqueta como <code>v0.1.0-rc1</code>, pero entonces la versión de <code>Cargo.toml</code> y de <code>tauri.conf.json</code> también tiene que ser <code>0.1.0-rc1</code>, porque el chequeo exige que coincidan.</p>
+
+<h2 id="falla">10. Si falla</h2>
+<p>Son hipótesis razonables, no fallos confirmados: nada de esto corrió todavía. En la pestaña <strong>Actions</strong> de GitHub, cada sistema tiene su propio registro.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Síntoma probable</th><th>Dónde</th><th>Causa probable</th></tr></thead>
+<tbody>
+<tr><td>Error de compilación que menciona <code>webkit2gtk</code> o <code>xdo</code></td><td>Linux</td><td>Falta un paquete en el paso de dependencias.</td></tr>
+<tr><td><code>clippy</code> se queja de un import o variable sin usar</td><td>Windows o Linux</td><td>Código que solo se usa en macOS (por <code>#[cfg]</code>) queda sin uso en los otros sistemas. Se corrige con <code>#[cfg]</code> o <code>#[allow]</code> en el lugar justo.</td></tr>
+<tr><td>Error de compilación en <code>enigo</code> o en el plugin de atajos</td><td>Windows o Linux</td><td>Una dependencia que necesita una configuración distinta en ese sistema.</td></tr>
+<tr><td>El chequeo de versión rojo</td><td>Cualquiera</td><td>La etiqueta no coincide con <code>Cargo.toml</code> o <code>tauri.conf.json</code>.</td></tr>
+<tr><td><code>tauri-action</code> no encuentra el CLI</td><td>Cualquiera</td><td>El <code>tauriScript</code> con <code>npx</code> no se ejecutó como esperábamos. Probar con <code>cargo install tauri-cli</code>.</td></tr>
+<tr><td>"Resource not accessible by integration" al crear el release</td><td>Cualquiera</td><td>El repo restringe el <code>GITHUB_TOKEN</code>; hay que revisar los permisos de Actions en la configuración del repo.</td></tr>
+<tr><td>Falla solo un sistema</td><td>Uno de los tres</td><td>Es exactamente para lo que está <code>fail-fast: false</code>: arreglar ese sistema sin tocar los otros.</td></tr>
+</tbody></table></div>
+
+<h2 id="ejercicios">11. Ejercicios</h2>
+<ol>
+  <li><strong>Hacer fallar el CI a propósito.</strong> En una rama, rompé el formato de una línea o escribí <code>if x == true</code> y mirá cómo reacciona cada trabajo. Es la mejor forma de entender qué mira cada paso.</li>
+  <li><strong>Agregar <code>--locked</code></strong> a los comandos de cargo y ver qué pasa si <code>Cargo.lock</code> está desactualizado.</li>
+  <li><strong>Agregar Dependabot</strong> (<code>.github/dependabot.yml</code>) para <code>cargo</code> y <code>github-actions</code>.</li>
+  <li><strong>Fijar las acciones por hash de commit</strong> y dejar que Dependabot las actualice.</li>
+  <li><strong>Agregar <code>cargo audit</code></strong> o <code>cargo deny</code> como trabajo nuevo del CI.</li>
+  <li><strong>Proteger la rama <code>main</code></strong> en GitHub para exigir que el CI pase antes de mezclar.</li>
+  <li><strong>Mover el chequeo de versión a un script</strong> (<code>scripts/check-version.sh</code>) para correrlo también en tu máquina antes de etiquetar.</li>
+</ol>
+
+<h2 class="glossary-title">Glosario</h2>
+<div popover id="t-ci" aria-label="Integración continua (CI)"><strong class="pt">Integración continua (CI)</strong><p><b>Qué es.</b> Un servidor (en GitHub, GitHub Actions) que compila y prueba el proyecto automáticamente en cada cambio.</p><p><b>Por qué acá.</b> Es la forma práctica de saber si anda en Windows y Linux sin tener esas máquinas, y evita que entren cambios que rompen.</p></div>
+<div popover id="t-cd" aria-label="Entrega continua (CD)"><strong class="pt">Entrega continua (CD)</strong><p><b>Qué es.</b> Armar automáticamente lo que se le entrega a los usuarios (los instaladores) y dejarlo listo para publicar. No es lo mismo que el despliegue continuo, donde además se publica solo.</p><p><b>Por qué acá.</b> Acá un humano publica el borrador. Para una app de escritorio sin firma y con un proceso que todavía no probamos, es lo prudente.</p></div>
+<div popover id="t-draft" aria-label="Release en borrador"><strong class="pt">Release en borrador</strong><p><b>Qué es.</b> Un release de GitHub que solo ven quienes tienen permiso de escritura hasta que lo publicás. Los archivos ya están subidos.</p><p><b>Por qué acá.</b> Es la red de seguridad: permite revisar o descartar una corrida sin que nadie la haya visto.</p></div>
+<div popover id="t-rustfmt" aria-label="rustfmt"><strong class="pt">rustfmt</strong><p><b>Qué es.</b> El formateador oficial de Rust: cargo fmt reescribe el código con un estilo único.</p><p><b>Por qué acá.</b> Evita discusiones de estilo y achica los diffs. En el CI se corre con --check para que falle si alguien no formateó.</p></div>
+<div popover id="t-clippy" aria-label="clippy"><strong class="pt">clippy</strong><p><b>Qué es.</b> Un analizador que detecta código que compila pero es sospechoso, poco idiomático o mejorable (cargo clippy).</p><p><b>Por qué acá.</b> Atrapa errores comunes antes de que lleguen a producción. En el CI se corre con -D warnings para que cualquier aviso haga fallar el build.</p></div>
+<div popover id="t-matrix" aria-label="Matrix (matriz)"><strong class="pt">Matrix (matriz)</strong><p><b>Qué es.</b> Una lista de combinaciones (sistema operativo, destino, versión) sobre las que se repite el mismo trabajo, en paralelo.</p><p><b>Por qué acá.</b> Una sola definición cubre macOS, Windows y Linux, sin copiar y pegar el trabajo tres veces.</p></div>
+<div popover id="t-cache" aria-label="Caché de dependencias"><strong class="pt">Caché de dependencias</strong><p><b>Qué es.</b> Guardar entre corridas lo que ya se compiló (dependencias, carpeta target) para no rehacerlo.</p><p><b>Por qué acá.</b> Tauri trae muchas dependencias; sin caché, cada corrida recompila todo. Se invalida sola si cambia Cargo.lock o la versión de Rust.</p></div>
+<div popover id="t-tag" aria-label="Etiqueta (tag) de Git"><strong class="pt">Etiqueta (tag) de Git</strong><p><b>Qué es.</b> Un nombre fijo que apunta a un commit concreto, como v0.1.0.</p><p><b>Por qué acá.</b> Marca exactamente qué código es "la versión". Subirla dispara release.yml, así que publicar es una decisión deliberada.</p></div>
+<div popover id="t-minimo" aria-label="Permisos mínimos"><strong class="pt">Permisos mínimos</strong><p><b>Qué es.</b> Darle a cada pieza solo el acceso que necesita para su tarea, y nada más.</p><p><b>Por qué acá.</b> Si un paso se compromete (una acción de terceros, un script), el daño queda limitado. Por eso solo el trabajo de release puede escribir en el repo.</p></div>
+<div popover id="t-pin" aria-label="Fijar por hash de commit"><strong class="pt">Fijar por hash de commit</strong><p><b>Qué es.</b> Referenciar una acción por su commit exacto (uses: dueño/acción@a1b2c3…) en vez de por una etiqueta como @v4.</p><p><b>Por qué acá.</b> Las etiquetas pueden moverse: quien controle el repo de la acción podría cambiar lo que ejecuta tu CI. El hash no cambia. El costo es tener que actualizarlo, y Dependabot lo automatiza.</p></div>
+
+
+<footer>Escrito por Claude para una persona que recién empieza con Rust y con GitHub Actions. Describe el estado del repo al escribirlo, con los workflows todavía sin ejecutar.</footer>
+</main>
+</div>
+<script>
+// Posiciona cada globo junto al término que lo abrió; sin esto el popover aparece centrado.
+let last;
+addEventListener('click', e => { last = e.target.closest('.term') || last; }, true);
+addEventListener('toggle', e => {
+  const p = e.target;
+  if (!p.matches('[popover]') || e.newState !== 'open' || !last) return;
+  const r = last.getBoundingClientRect(), pw = p.offsetWidth, ph = p.offsetHeight, m = 12;
+  const left = Math.max(m, Math.min(r.left, innerWidth - pw - m));
+  const below = r.bottom + 8, top = below + ph > innerHeight - m && r.top - ph - 8 > m ? r.top - ph - 8 : below;
+  p.style.left = left + 'px'; p.style.top = Math.max(m, top) + 'px';
+}, true);
+</script>

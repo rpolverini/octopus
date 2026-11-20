@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>octopus por dentro: aprendiendo Rust</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: oklch(98.6% 0.004 20);
+    --panel: oklch(96.5% 0.006 20);
+    --ink: oklch(25% 0.012 20);
+    --muted: oklch(46% 0.014 20);
+    --line: oklch(89% 0.008 20);
+    --accent: oklch(50% 0.19 10);
+    --accent-soft: oklch(94% 0.035 10);
+    --ok: oklch(42% 0.12 155);
+    --warn: oklch(46% 0.12 70);
+    --code-bg: oklch(95.5% 0.006 20);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: oklch(21% 0.008 20);
+      --panel: oklch(25% 0.01 20);
+      --ink: oklch(94% 0.005 20);
+      --muted: oklch(73% 0.012 20);
+      --line: oklch(34% 0.01 20);
+      --accent: oklch(76% 0.14 10);
+      --accent-soft: oklch(30% 0.06 10);
+      --ok: oklch(76% 0.13 155);
+      --warn: oklch(78% 0.12 75);
+      --code-bg: oklch(18% 0.008 20);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); }
+  ::selection { background: var(--accent-soft); }
+  a { color: var(--accent); text-underline-offset: 3px; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .layout { display: grid; grid-template-columns: 1fr; max-width: 1180px; margin: 0 auto; padding: 0 20px; }
+  @media (min-width: 960px) { .layout { grid-template-columns: 230px minmax(0, 1fr); gap: 56px; } }
+
+  nav { padding: 24px 0; font-size: 14px; }
+  @media (min-width: 960px) { nav { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow: auto; } }
+  nav strong { display: block; margin-bottom: 8px; }
+  nav ol { margin: 0; padding: 0; list-style: none; }
+  nav a { display: block; padding: 3px 0; color: var(--muted); text-decoration: none; }
+  nav a:hover { color: var(--accent); }
+
+  main { padding: 24px 0 96px; min-width: 0; }
+  .hero { display: flex; gap: 20px; align-items: center; padding-bottom: 8px; }
+  .hero img { width: 88px; height: 88px; flex: none; }
+  h1 { margin: 0; font-size: 2rem; line-height: 1.15; letter-spacing: -0.02em; text-wrap: balance; }
+  .sub { margin: 6px 0 0; color: var(--muted); }
+  h2 { margin: 56px 0 8px; padding-top: 8px; font-size: 1.45rem; line-height: 1.2; letter-spacing: -0.01em; text-wrap: balance; }
+  h3 { margin: 32px 0 4px; font-size: 1.05rem; }
+  p, li { max-width: 72ch; }
+  p { margin: 10px 0; }
+  ul, ol { padding-left: 1.3em; }
+  li { margin: 4px 0; }
+
+  code { font: 0.88em ui-monospace, "SF Mono", Menlo, Consolas, monospace; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  pre { margin: 14px 0; padding: 14px 16px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; line-height: 1.5; }
+  pre code { background: none; padding: 0; font-size: 13px; }
+  .file { display: block; margin: 18px 0 -6px; font-size: 13px; color: var(--muted); }
+
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14.5px; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  th { font-size: 13px; color: var(--muted); font-weight: 600; }
+  td:first-child { white-space: nowrap; }
+  .tablewrap { overflow-x: auto; }
+
+  .note { margin: 16px 0; padding: 12px 14px; background: var(--accent-soft); border-radius: 8px; max-width: 72ch; }
+  .note p { margin: 4px 0; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+
+  .flow { counter-reset: s; list-style: none; padding: 0; margin: 18px 0; display: grid; gap: 8px; max-width: 72ch; }
+  .flow li { counter-increment: s; display: grid; grid-template-columns: 32px 1fr; gap: 12px; align-items: start; margin: 0; padding: 10px 12px; background: var(--panel); border-radius: 8px; }
+  .flow li::before { content: counter(s); display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--bg); font-weight: 700; font-size: 13px; }
+
+  .term { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: help; text-decoration: underline dotted var(--accent); text-underline-offset: 4px; text-decoration-thickness: 1.5px; }
+  .term:hover { color: var(--accent); }
+  .term code { background: none; padding: 0; }
+  [popover] { position: fixed; inset: auto; margin: 0; width: min(360px, calc(100vw - 24px)); padding: 14px 16px; background: var(--panel); color: var(--ink);
+              border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 28px oklch(0% 0 0 / .22), 0 2px 6px oklch(0% 0 0 / .12); font-size: 14px; line-height: 1.5; }
+  [popover] p { margin: 6px 0 0; }
+  [popover] .pt { display: block; font-size: 15px; margin-bottom: 2px; }
+  [popover] b { color: var(--accent); }
+  .glossary-title { display: none; }
+  @supports not selector(:popover-open) { .glossary-title { display: block; } [popover] { position: static; width: auto; margin: 12px 0; } }
+  footer { margin-top: 64px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+</style>
+
+<div class="layout">
+<nav aria-label="Índice">
+  <strong>Contenido</strong>
+  <ol>
+    <li><a href="#que">1. Qué es octopus</a></li>
+    <li><a href="#mapa">2. Mapa del repo</a></li>
+    <li><a href="#flujo">3. Qué pasa al apretar una tecla</a></li>
+    <li><a href="#decisiones">4. Decisiones y por qué</a></li>
+    <li><a href="#rust">5. Rust en el código real</a></li>
+    <li><a href="#practicas">6. Buenas prácticas: qué hay y qué falta</a></li>
+    <li><a href="#os">7. Windows y Linux</a></li>
+    <li><a href="#github">8. Publicar en GitHub</a></li>
+    <li><a href="#correr">9. Comandos</a></li>
+    <li><a href="#ejercicios">10. Ejercicios</a></li>
+  </ol>
+</nav>
+
+<main>
+<div class="hero">
+  <img src="ui/octopus.png" alt="">
+  <div>
+    <h1>octopus por dentro</h1>
+    <p class="sub">Una guía para aprender Rust leyendo un proyecto real: qué hace cada archivo, por qué se decidió cada cosa y qué falta para publicarlo bien.</p>
+  </div>
+</div>
+
+<p class="sub">Los términos con subrayado punteado se explican al tocarlos: qué son y por qué se usan acá. Segunda parte: <a href="aprendiendoCICD.html">CI/CD, cómo y por qué</a>.</p>
+
+<div class="note"><p><strong>Cómo se hizo, con honestidad.</strong> Este proyecto lo escribió Claude (Claude Code, modelo Claude Sonnet 5.5) en una conversación con una persona que desarrolla software y nunca había usado Rust. Esa persona definió qué quería y probó el resultado en su máquina; el código y esta guía los redactó la IA.</p>
+<p>Por eso conviene leerlo con ojo crítico: <strong>no lo revisó ningún experto en Rust</strong>, solo se probó en macOS y las decisiones de la sección 4 son razonables pero discutibles. Si encontrás un error, un issue o un PR son muy bienvenidos.</p></div>
+
+<h2 id="que">1. Qué es octopus</h2>
+<p>Es una app de bandeja del sistema que pega textos predefinidos (emails, números de prueba, lo que sea) con una combinación de teclas, en cualquier aplicación. Reemplaza el uso que se le daba a Karabiner-Elements, pero sin instalar ningún driver de teclado.</p>
+<p>Se configura en una ventana con una tabla: <em>atajo, texto, descripción</em>. Los atajos se agrupan en <strong>plantillas</strong> (pestañas) y una sola está activa a la vez. Puede arrancar con el sistema.</p>
+<p>Está construido con <button type="button" class="term" popovertarget="t-tauri">Tauri</button>, que además se encarga del <button type="button" class="term" popovertarget="t-empaquetado">sistema de empaquetado</button>: convertir el código en una app que se puede instalar en cada sistema.</p>
+<p>Son unas 350 líneas de Rust, unas 400 de HTML/CSS/JS y nada más. Esa escala es lo que lo hace bueno para aprender: se lee entero en una tarde.</p>
+
+<h2 id="mapa">2. Mapa del repo</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Ruta</th><th>Qué es</th><th>Por qué está así</th></tr></thead>
+<tbody>
+<tr><td><code>src/main.rs</code></td><td>Toda la lógica: hotkeys, pegado, config, bandeja, comandos para la UI.</td><td>Con unas 350 líneas, partirlo en módulos sería ruido. Cuando crezca, el primer corte natural es <code>config.rs</code> (structs y migración) y <code>paste.rs</code>.</td></tr>
+<tr><td><code>ui/index.html</code></td><td>La ventana de configuración: HTML, CSS y JS en un solo archivo.</td><td>Sin bundler ni framework: no hay <code>node_modules</code>, el build es solo <code>cargo</code>. Tauri empaqueta la carpeta <code>ui/</code> dentro del binario.</td></tr>
+<tr><td><code>ui/octopus.png</code></td><td>El pulpo que se ve en la ventana.</td><td>Tiene que estar dentro de <code>ui/</code> para que el HTML lo pueda cargar con una ruta relativa.</td></tr>
+<tr><td><button type="button" class="term" popovertarget="t-cargo"><code>Cargo.toml</code></button></td><td>Nombre, versión, edición de Rust y dependencias.</td><td>Declara qué se usa y con qué <em>features</em> (por ejemplo <code>tray-icon</code> para el ícono de bandeja).</td></tr>
+<tr><td><code>Cargo.lock</code></td><td>Las versiones exactas que se resolvieron.</td><td>Se versiona en apps (no en librerías) para que cualquiera compile exactamente lo mismo.</td></tr>
+<tr><td><code>build.rs</code></td><td>Script que corre antes de compilar.</td><td>Tauri lo necesita para generar el contexto de la app y validar permisos.</td></tr>
+<tr><td><code>tauri.conf.json</code></td><td>Nombre del producto, identificador (<code>dev.octopus.app</code>), ventana, íconos y formatos de empaquetado.</td><td>El identificador también define dónde se guarda la config del usuario y con qué nombre macOS recuerda los permisos.</td></tr>
+<tr><td><code>capabilities/default.json</code></td><td>Qué APIs de Tauri puede usar la ventana.</td><td>Tauri 2 es "deny by default": la ventana solo tiene <code>core:default</code>. Nuestros comandos propios no necesitan permisos extra.</td></tr>
+<tr><td><code>icons/</code></td><td>Íconos para cada sistema (<code>.icns</code> macOS, <code>.ico</code> Windows, PNG Linux) y el de la bandeja.</td><td>Se generan con <code>tauri icon</code> desde <code>assets/octopus.png</code>. Se versionan porque el build los necesita.</td></tr>
+<tr><td><code>assets/octopus.png</code></td><td>La imagen original (1254×1254) de la que salen todos los íconos.</td><td>Fuente única de verdad: si cambia el pulpo, se regenera todo.</td></tr>
+<tr><td><code>scripts/sign.sh</code></td><td>Firma la app en macOS con un requisito estable.</td><td>Sin esto, macOS pierde el permiso de Accesibilidad cada vez que recompilás. Es solo para macOS.</td></tr>
+<tr><td><code>.gitignore</code></td><td>Ignora <code>target/</code>, <code>gen/</code> y <code>.impeccable/</code>.</td><td>Son resultados de compilar o cachés de herramientas, no código.</td></tr>
+<tr><td><code>target/</code>, <code>gen/</code></td><td>Lo que produce compilar: binarios y archivos generados por Tauri.</td><td>Cada build los vuelve a crear, así que no se suben al repo.</td></tr>
+</tbody></table></div>
+
+<h2 id="flujo">3. Qué pasa al apretar una tecla</h2>
+<p>Este es el camino completo de un atajo. Leerlo junto a <code>src/main.rs</code> da el mapa mental del programa.</p>
+<ol class="flow">
+  <li><div><strong>Al arrancar</strong>, <code>setup</code> lee el JSON y llama a <code>apply</code>, que le pide al sistema operativo registrar cada combinación de la plantilla activa como <button type="button" class="term" popovertarget="t-hotkey">hotkey global</button>.</div></li>
+  <li><div><strong>Apretás ⌃⌥E.</strong> El sistema operativo (no octopus) detecta la combinación registrada y avisa a la app. No hay ningún driver mirando el teclado.</div></li>
+  <li><div>El <strong>handler</strong> del plugin recibe el <code>Shortcut</code>. Si es la combinación de abrir, muestra la ventana. Si no, busca en el <code>State</code> el texto asociado.</div></li>
+  <li><div>Si hay texto, <code>paste</code> lanza un <strong><button type="button" class="term" popovertarget="t-hilo">hilo aparte</button></strong> para no bloquear el bucle de eventos de la app.</div></li>
+  <li><div>El hilo <strong>espera 350 ms</strong> (a que sueltes las teclas), guarda lo que tenías en el portapapeles (texto, imagen, archivos o HTML) y copia el texto nuevo.</div></li>
+  <li><div>Con <code>enigo</code> simula <strong>Cmd+V</strong> (Ctrl+V fuera de Mac). Esto es lo único que necesita el <button type="button" class="term" popovertarget="t-accesibilidad">permiso de Accesibilidad</button>.</div></li>
+  <li><div>Espera 250 ms y <strong>restaura</strong> el portapapeles original, con el mismo tipo de contenido que tenía. Si era algo que no sabe copiar, lo deja vacío en vez de dejar el texto pegado.</div></li>
+</ol>
+<p>Si falta el permiso de Accesibilidad, <code>Enigo::new</code> devuelve error y el hilo termina antes de restaurar el portapapeles. Es un buen accidente: el texto queda copiado y podés pegarlo a mano.</p>
+
+<h2 id="decisiones">4. Decisiones importantes y por qué</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Decisión</th><th>Alternativas</th><th>Por qué esta</th></tr></thead>
+<tbody>
+<tr><td>Rust + <button type="button" class="term" popovertarget="t-tauri">Tauri</button> 2</td><td>Electron, Go, Python, Swift</td><td>Binario chico (~12 MB) sin runtime, multiplataforma, y la ventana usa el <button type="button" class="term" popovertarget="t-webview">webview</button> del sistema en vez de traerse un Chromium. Swift sería nativo pero solo Mac.</td></tr>
+<tr><td>Hotkeys del sistema operativo</td><td>Interceptar el teclado (Karabiner, <code>CGEventTap</code>)</td><td>Interceptar requiere <button type="button" class="term" popovertarget="t-driver">drivers</button> o permisos de "Input Monitoring". Registrar un hotkey global solo requiere pedirle al sistema que avise. Es justo lo que tu máquina restringida sí permite.</td></tr>
+<tr><td>Pegar vía portapapeles</td><td>Tipear carácter por carácter</td><td>Es instantáneo y no depende del layout del teclado (un <code>@</code> en teclado latam no es el mismo de uno en inglés). El costo: hay que restaurar el portapapeles.</td></tr>
+<tr><td>Guardar y restaurar el portapapeles completo</td><td>Guardar solo el texto</td><td>La primera versión solo guardaba texto plano. Si habías copiado una imagen, un archivo o contenido sin texto, no se podía restaurar y te quedaba el último atajo en el portapapeles. Se detectó usándolo, se reprodujo aparte con cada tipo de contenido y se corrigió. Ahora se guarda texto, HTML, imagen o archivos.</td></tr>
+<tr><td>Hilo para pegar</td><td>Pegar dentro del handler</td><td>El handler corre en el hilo principal. Un <code>sleep</code> ahí congelaría la app.</td></tr>
+<tr><td><code>State(Mutex&lt;Vec&lt;…&gt;&gt;)</code></td><td>Variable global, o releer el JSON en cada tecla</td><td>El handler es una closure registrada una sola vez y no recibe argumentos nuestros. <code>manage</code> + <code>state</code> es la forma de Tauri de compartir datos, y el <code>Mutex</code> permite escribir desde <code>apply</code> y leer desde el handler.</td></tr>
+<tr><td>Config en JSON en <code>app_config_dir</code></td><td>TOML, SQLite, junto al ejecutable</td><td>La UI lo consume directo con <code>serde_json</code>. El directorio lo resuelve Tauri por sistema operativo, así que no hay rutas hardcodeadas.</td></tr>
+<tr><td><code>parse_config</code> acepta dos formatos</td><td>Romper la config vieja</td><td>La v1 guardaba una lista plana; la v2 guarda plantillas. Intentar el formato nuevo y caer al viejo evita que el usuario pierda sus atajos.</td></tr>
+<tr><td><code>Config::fixed()</code></td><td>Validar en cada uso</td><td>Garantiza una invariante (al menos una plantilla, <code>active</code> dentro del rango) en un solo lugar. Después se puede indexar <code>profiles[active]</code> sin miedo.</td></tr>
+<tr><td>Una sola plantilla activa</td><td>Todas registradas a la vez</td><td>Permite repetir el mismo atajo en plantillas distintas (trabajo, QA) sin conflicto.</td></tr>
+<tr><td>Combinación de apertura por sistema</td><td>Una sola para todos</td><td>En Windows/Linux <code>Ctrl+Alt</code> es <button type="button" class="term" popovertarget="t-altgr">AltGr</button> y rompe caracteres como <code>@</code> en teclados latam y españoles. Ahí lleva Shift. Se resuelve en compilación con <button type="button" class="term" popovertarget="t-cfg"><code>#[cfg]</code></button>.</td></tr>
+<tr><td>Cerrar la ventana = esconderla</td><td>Cerrar la app</td><td>octopus vive en la bandeja. <code>prevent_close()</code> y <code>hide()</code>. Salir es una acción explícita del menú.</td></tr>
+<tr><td>Frontend sin framework</td><td>React, Svelte, Vue</td><td>Una tabla editable y unas pestañas no justifican un toolchain. <code>withGlobalTauri</code> expone <code>invoke</code> sin bundler.</td></tr>
+<tr><td>Los comandos devuelven <code>Result&lt;_, String&gt;</code></td><td>Tipos de error propios</td><td>El error viaja a JavaScript serializado: un <code>String</code> es lo más simple. Con más comandos conviene un enum con <code>thiserror</code>.</td></tr>
+<tr><td><code>apply</code> registra lo que puede y reporta el resto</td><td>Abortar al primer error</td><td>Un atajo repetido o tomado por otra app no debería dejar sin funcionar a los demás. Los errores vuelven por combinación y la UI los marca en la fila.</td></tr>
+<tr><td><button type="button" class="term" popovertarget="t-firma">Firma</button> con identificador estable</td><td>Firma ad-hoc por defecto, certificado</td><td>La firma por defecto ata el permiso al hash del binario, que cambia en cada compilación. Con un requisito basado en el identificador el permiso se conserva. Para distribuir hace falta un certificado Developer ID.</td></tr>
+</tbody></table></div>
+
+<h2 id="rust">5. Rust en el código real</h2>
+<p>Cada concepto de abajo aparece en <code>src/main.rs</code>. Los fragmentos están simplificados (sin el formato exacto de <code>rustfmt</code>).</p>
+
+<h3>Tipos de datos y <code>derive</code></h3>
+<span class="file">src/main.rs</span>
+<pre><code>#[derive(Clone, Serialize, Deserialize)]
+struct Entry {
+    combo: String,
+    text: String,
+    desc: String,
+}</code></pre>
+<p>Un <code>struct</code> agrupa campos con nombre. <code>#[derive(...)]</code> le pide al compilador que escriba el código repetitivo por vos: <code>Clone</code> permite duplicarlo, y <code>Serialize</code>/<code>Deserialize</code> (de <button type="button" class="term" popovertarget="t-serde"><code>serde</code></button>) lo convierten desde y hacia JSON sin una sola línea manual. Los mismos structs sirven para el archivo y para hablar con la UI.</p>
+
+<h3>Propiedad (<em>ownership</em>) y préstamos</h3>
+<span class="file">src/main.rs</span>
+<pre><code>fn apply(app: &amp;AppHandle, cfg: &amp;Config) -&gt; Result&lt;(), String&gt; { … }
+
+fn paste(text: String) {
+    thread::spawn(move || {
+        // `text` se mudó adentro del hilo
+    });
+}</code></pre>
+<p>Es la idea central de Rust. <code>&amp;Config</code> es un <strong><button type="button" class="term" popovertarget="t-prestamo">préstamo</button></strong>: <code>apply</code> puede leer la config pero no se la queda, así que quien llama la sigue usando. En cambio <code>text: String</code> se pasa <strong>por valor</strong>, o sea que <code>paste</code> pasa a ser su dueña. El hilo necesita vivir más que la función, así que la closure es <code>move</code>: se lleva <code>text</code> adentro. El compilador comprueba que nadie más lo use, y eso evita toda una clase de bugs de memoria y de hilos.</p>
+
+<h3><code>Option</code>, <code>Result</code> y manejo de errores</h3>
+<span class="file">src/main.rs</span>
+<pre><code>let Ok(mut cb) = Clipboard::new() else {
+    return eprintln!("paste: clipboard open failed");
+};
+
+fs::write(config_path(&amp;app), json).map_err(|e| e.to_string())?;
+
+fs::read_to_string(path).map(|s| parse_config(&amp;s)).unwrap_or_default()</code></pre>
+<p>Rust no tiene excepciones ni <code>null</code>. Algo que puede faltar es un <code>Option</code> (<code>Some</code>/<code>None</code>); algo que puede fallar es un <code>Result</code> (<code>Ok</code>/<code>Err</code>). Tres herramientas aparecen acá:</p>
+<ul>
+  <li><code>let … else</code>: si el patrón no calza, ejecutás el <code>else</code> y salís. Evita anidar <code>if</code>.</li>
+  <li><code>?</code>: si hay error, lo devuelve de inmediato desde la función; si no, desenvuelve el valor.</li>
+  <li><code>map_err</code> convierte el tipo de error (acá a <code>String</code>) y <code>unwrap_or_default</code> da un valor por defecto si falló la lectura.</li>
+</ul>
+
+<h3><em>Pattern matching</em> con guardas</h3>
+<span class="file">src/main.rs, dentro de <code>apply</code></span>
+<pre><code>match e.combo.parse::&lt;Shortcut&gt;() {
+    Ok(s) if s == open =&gt; errs.push("reservada para abrir la configuración"),
+    Ok(s) if ya_registrada(&amp;s)  =&gt; errs.push("repetida"),
+    Ok(s) =&gt; match gs.register(s) {
+        Ok(_)    =&gt; ok.push((s, e.text.clone())),
+        Err(err) =&gt; errs.push(format!("{}: {}", e.combo, err)),
+    },
+    Err(_) =&gt; errs.push("combinación inválida"),
+}</code></pre>
+<p><code>match</code> obliga a cubrir todos los casos: si olvidás uno, no compila. Las <strong>guardas</strong> (<code>if …</code>) permiten distinguir casos dentro de un mismo patrón. El orden importa, se evalúa de arriba hacia abajo. Fijate que <code>parse::&lt;Shortcut&gt;()</code> funciona porque <code>Shortcut</code> implementa el <em>trait</em> <code>FromStr</code>.</p>
+
+<h3>Enums con datos: modelar "una de varias cosas"</h3>
+<span class="file">src/main.rs</span>
+<pre><code>enum Saved {
+    Files(Vec&lt;PathBuf&gt;),
+    Image(ImageData&lt;'static&gt;),
+    Html(String, Option&lt;String&gt;),
+    Text(String),
+    Other,
+}
+
+let r = match saved {
+    Saved::Files(f) =&gt; cb.set().file_list(&amp;f),
+    Saved::Image(i) =&gt; cb.set().image(i),
+    Saved::Html(h, alt) =&gt; cb.set().html(h, alt),
+    Saved::Text(t) =&gt; cb.set_text(t),
+    Saved::Other =&gt; cb.clear(),
+};</code></pre>
+<p>Un <code>enum</code> de Rust es una de varias variantes, y <strong>cada una puede llevar sus propios datos</strong>. Acá el portapapeles puede tener archivos, una imagen, HTML o texto, y cada caso necesita guardar algo distinto. Como <code>match</code> obliga a cubrir todas las variantes, si más adelante se agrega una nueva el compilador marca todos los lugares donde falta manejarla.</p>
+<p>Este código nació de un bug real: la primera versión guardaba el portapapeles como <code>Option&lt;String&gt;</code>, es decir "texto o nada", y eso no podía representar una imagen. Cuando el tipo no alcanza para describir la realidad, el código termina con huecos. Reemplazarlo por un <code>enum</code> corrigió el problema de raíz.</p>
+
+<h3>Traits: <code>Default</code> y traits de extensión</h3>
+<span class="file">src/main.rs</span>
+<pre><code>impl Default for Config {
+    fn default() -&gt; Self { /* una plantilla vacía */ }
+}
+
+use tauri_plugin_global_shortcut::GlobalShortcutExt;
+let gs = app.global_shortcut();   // método "agregado" a AppHandle</code></pre>
+<p>Un <strong>trait</strong> es un conjunto de métodos que un tipo se compromete a tener (como una interfaz). Implementar <code>Default</code> habilita <code>unwrap_or_default()</code> y <code>#[derive(Default)]</code> en otros tipos. Los traits de extensión (<code>GlobalShortcutExt</code>, <code>ManagerExt</code>) son la forma en que un plugin le "agrega" métodos a un tipo que no es suyo: solo funcionan si importás el trait con <code>use</code>.</p>
+
+<h3>Compilación condicional</h3>
+<span class="file">src/main.rs</span>
+<pre><code>#[cfg(target_os = "macos")]
+const OPEN_COMBO: &amp;str = "Ctrl+Alt+O";
+#[cfg(not(target_os = "macos"))]
+const OPEN_COMBO: &amp;str = "Ctrl+Shift+Alt+O";</code></pre>
+<p>El código de la rama que no corresponde ni se compila. Así el mismo archivo sirve para los tres sistemas y no queda lógica de "¿en qué OS estoy?" en tiempo de ejecución. <code>&amp;'static str</code> es un texto que vive durante todo el programa.</p>
+
+<h3>Estado compartido y concurrencia</h3>
+<span class="file">src/main.rs</span>
+<pre><code>#[derive(Default)]
+struct State(Mutex&lt;Vec&lt;(Shortcut, String)&gt;&gt;);
+
+// escribir (apply)
+*app.state::&lt;State&gt;().0.lock().unwrap() = ok;
+// leer (handler del hotkey)
+let text = app.state::&lt;State&gt;().0.lock().unwrap()
+    .iter().find(|(s, _)| s == sc).map(|(_, t)| t.clone());</code></pre>
+<p>Dos hilos pueden tocar la lista de atajos (el de la UI y el del hotkey). <code><button type="button" class="term" popovertarget="t-mutex">Mutex</button></code> garantiza que uno a la vez: <code>lock()</code> devuelve una "llave" que se suelta sola al salir del alcance. <code>struct State(...)</code> es un <em>tuple struct</em> y se accede al campo con <code>.0</code>. El <code>unwrap()</code> acá solo falla si otro hilo entró en pánico con la llave tomada (<em>poisoning</em>).</p>
+
+<h3>Closures y el patrón <em>builder</em></h3>
+<span class="file">src/main.rs</span>
+<pre><code>TrayIconBuilder::new()
+    .icon(…)
+    .menu(&amp;menu)
+    .on_menu_event(|app, ev| match ev.id.as_ref() {
+        "open" =&gt; show_window(app),
+        "quit" =&gt; app.exit(0),
+        _ =&gt; {}
+    })
+    .build(app)?;</code></pre>
+<p>Cada método devuelve el builder, así que se encadenan. Las <strong>closures</strong> (<code>|args| cuerpo</code>) son funciones anónimas que se pasan como callbacks. El <code>_ =&gt; {}</code> es el caso "cualquier otro", obligatorio en un <code>match</code> sobre texto.</p>
+
+<h3>Atributos <code>#[tauri::command]</code> y el puente con JS</h3>
+<span class="file">src/main.rs y ui/index.html</span>
+<pre><code>#[tauri::command]
+fn save_config(app: AppHandle, config: Config) -&gt; Result&lt;(), String&gt; { … }
+
+// en el HTML
+await invoke('save_config', { config: cfg });</code></pre>
+<p>La macro genera el código que convierte el JSON que manda JavaScript en un <code>Config</code> de Rust (por eso lleva <code>Deserialize</code>) y el <code>Result</code> de vuelta en una promesa resuelta o rechazada. Los argumentos en <code>camelCase</code> del lado JS se asocian a los nombres del lado Rust.</p>
+
+<h3>clippy y rustfmt: dos revisores automáticos</h3>
+<p>Rust trae dos herramientas oficiales que revisan el código <strong>sin ejecutarlo</strong>:</p>
+<ul>
+  <li><code>cargo fmt</code> (<code>rustfmt</code>) se ocupa del <strong>formato</strong>: espacios, saltos de línea, orden. No opina sobre si el código está bien, solo lo deja con un estilo único.</li>
+  <li><code>cargo clippy</code> es un <strong><em>linter</em></strong>: detecta código que <strong>compila</strong> pero es sospechoso, poco idiomático o mejorable. El nombre viene del asistente de Office.</li>
+</ul>
+<p>Un ejemplo real. Este código compila sin quejas:</p>
+<span class="file">ejemplo, no es parte de octopus</span>
+<pre><code>let v: Vec&lt;i32&gt; = vec![1, 2, 3];
+if v.len() == 0 { println!("vacío"); }
+
+let listo = true;
+if listo == true { println!("listo"); }
+
+for i in 0..v.len() { println!("{}", v[i]); }</code></pre>
+<p>Pero <code>cargo clippy</code> marca tres cosas. Esta es la salida real de la versión 0.1.98, recortada:</p>
+<pre><code>warning: length comparison to zero
+ --&gt; src/main.rs:3:8
+  |     if v.len() == 0 {
+  |        ^^^^^^^^^^^^ help: using `is_empty` is clearer and more explicit: `v.is_empty()`
+
+warning: equality checks against true are unnecessary
+ --&gt; src/main.rs:7:8
+  |     if listo == true {
+  |        ^^^^^^^^^^^^^ help: try: `listo`
+
+warning: the loop variable `i` is only used to index `v`
+  --&gt; src/main.rs:10:14
+  |     for i in 0..v.len() {
+  |              ^^^^^^^^^^
+  = help: consider using an iterator: for &lt;item&gt; in &amp;v</code></pre>
+<p>Cada aviso trae un nombre (<code>clippy::len_zero</code>, <code>clippy::bool_comparison</code>, <code>clippy::needless_range_loop</code>), un enlace a su explicación y, muchas veces, la corrección. Por eso es una buena forma de aprender: cada aviso enseña la forma que Rust considera natural. Algunas cosas se arreglan solas con <code>cargo clippy --fix</code>.</p>
+<ul>
+  <li><strong>Niveles:</strong> los lints se agrupan en categorías. Los de <em>correctness</em> (errores casi seguros) frenan la compilación; los de <em>style</em>, <em>complexity</em> y <em>perf</em> son avisos; otros más estrictos (como <em>pedantic</em>) vienen apagados.</li>
+  <li><strong>Silenciar uno:</strong> si un aviso no aplica en un caso concreto, se anota <code>#[allow(clippy::nombre)]</code> en ese lugar, con un comentario que explique por qué.</li>
+  <li><strong>En octopus:</strong> corrimos <code>cargo clippy --all-targets -- -D warnings</code> y no marcó nada. Ojo: se corrió solo en macOS. En Windows y Linux, el código que solo se usa en Mac (por <code>#[cfg]</code>) puede quedar sin uso y generar avisos. El CI nos lo va a decir.</li>
+  <li><strong>En el CI:</strong> se corre con <code>-D warnings</code>, que convierte cualquier aviso en error. Está explicado en <a href="aprendiendoCICD.html#decisiones">la segunda parte</a>.</li>
+</ul>
+
+<h3>Tests</h3>
+<span class="file">src/main.rs</span>
+<pre><code>#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn config_migrates_legacy_and_clamps() {
+        let legacy = r#"[{"combo":"Ctrl+Alt+E","text":"a","desc":"d"}]"#;
+        let c = parse_config(legacy);
+        assert_eq!(c.profiles[0].entries.len(), 1);
+        assert_eq!(parse_config("basura").profiles.len(), 1);
+    }
+}</code></pre>
+<p>El módulo <code>tests</code> solo existe con <code>cargo test</code>. <code>use super::*</code> importa todo lo del archivo, incluidas las funciones privadas. Los tests actuales cubren las dos cosas con lógica propia: que las combinaciones que genera la UI se puedan parsear, y que la migración de config funcione.</p>
+
+<h3>Cargo: <code>edition</code>, <em>features</em> y <code>build.rs</code></h3>
+<span class="file">Cargo.toml</span>
+<pre><code>edition = "2024"
+tauri = { version = "2.12.7", features = ["tray-icon"] }</code></pre>
+<p>La <em>edition</em> fija el dialecto del lenguaje. Los <em>features</em> activan partes opcionales de una dependencia: el ícono de bandeja no viene por defecto para no compilar de más. <code>serde</code> usa <code>derive</code> como feature para habilitar las macros.</p>
+
+<h2 id="practicas">6. Buenas prácticas: qué hay y qué falta</h2>
+<p>Una guía honesta: el proyecto sigue varias prácticas y deja otras pendientes a propósito, porque es un MVP.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Práctica</th><th>Estado</th><th>Comentario</th></tr></thead>
+<tbody>
+<tr><td>Formato con <button type="button" class="term" popovertarget="t-rustfmt"><code>rustfmt</code></button></td><td><span class="ok">Hecho</span></td><td><code>cargo fmt --check</code> pasa.</td></tr>
+<tr><td>Lints con <button type="button" class="term" popovertarget="t-clippy"><code>clippy</code></button></td><td><span class="ok">Hecho</span></td><td><code>cargo clippy --all-targets</code> corre sin avisos.</td></tr>
+<tr><td>Tests de la lógica propia</td><td><span class="ok">Hecho</span></td><td>2 tests. No hay tests de integración ni de la UI.</td></tr>
+<tr><td>Casos borde de datos del usuario</td><td><span class="ok">Hecho, con un límite</span></td><td>El portapapeles se probó aparte con texto, imagen, HTML, archivos y vacío. No hay un test automático, porque correrlo pisaría tu portapapeles real. El contenido propio de algunas apps no se puede restaurar.</td></tr>
+<tr><td>Errores sin <code>panic</code> en el flujo normal</td><td><span class="ok">Hecho</span></td><td>Los fallos de pegado y de registro se reportan. Quedan <code>unwrap()</code> sobre constantes (cubiertas por un test) y <code>lock().unwrap()</code>.</td></tr>
+<tr><td>Una invariante, un solo lugar</td><td><span class="ok">Hecho</span></td><td><code>Config::fixed()</code>.</td></tr>
+<tr><td>Permisos mínimos</td><td><span class="ok">Hecho</span></td><td>La ventana solo tiene <code>core:default</code>. No hay red, ni acceso a archivos desde JS.</td></tr>
+<tr><td>Registro de eventos (<em>logging</em>)</td><td><span class="warn">Pendiente</span></td><td>Hoy hay <code>eprintln!</code>. Mejor el crate <code>log</code> con un nivel configurable.</td></tr>
+<tr><td>Política de seguridad de contenido (CSP)</td><td><span class="warn">Pendiente</span></td><td><code>tauri.conf.json</code> tiene <code>"csp": null</code>. Como la UI es local y no carga nada externo el riesgo es bajo, pero conviene definir una CSP estricta.</td></tr>
+<tr><td>Tiempos fijos con <code>sleep</code></td><td><span class="warn">Pendiente</span></td><td>350 ms y 250 ms son estimaciones. Más robusto: consultar si los modificadores siguen apretados y recién ahí pegar.</td></tr>
+<tr><td>Errores tipados</td><td><span class="warn">Pendiente</span></td><td>Reemplazar <code>String</code> por un <code>enum</code> con <code>thiserror</code> si los comandos crecen.</td></tr>
+<tr><td>Config en texto plano</td><td><span class="warn">Aceptable hoy</span></td><td>Son datos de prueba. Si se guardara algo sensible hay que cifrarlo o usar el llavero del sistema.</td></tr>
+<tr><td><button type="button" class="term" popovertarget="t-ci">Integración continua</button></td><td><span class="warn">Escrita, sin probar</span></td><td>Los workflows están en <code>.github/workflows/</code> (sección 8). Hasta que corran en GitHub no sabemos si compila en Windows y Linux.</td></tr>
+<tr><td>Probado en Windows y Linux</td><td><span class="warn">Pendiente</span></td><td>Solo se compiló y probó en macOS.</td></tr>
+</tbody></table></div>
+
+<h2 id="os">7. ¿Corre en Windows y Linux?</h2>
+<p><strong>Debería, pero no está probado.</strong> Todas las piezas (Tauri, el plugin de hotkeys, <code>arboard</code>, <code>enigo</code> y el plugin de autoarranque) tienen soporte para los tres sistemas, y el código ya separa lo específico de macOS con <code>#[cfg]</code>. Pero solo lo compilé y lo ejecuté en Mac. Tomalo como una hipótesis razonable, no como una confirmación.</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th></th><th>macOS</th><th>Windows</th><th>Linux</th></tr></thead>
+<tbody>
+<tr><td>Hotkeys globales</td><td>Sí</td><td>Sí (la combinación con la tecla Win suele estar reservada por el sistema)</td><td>Solo X11. En <button type="button" class="term" popovertarget="t-wayland">Wayland</button>, según la documentación del crate, no funcionan</td></tr>
+<tr><td>Pegado simulado</td><td>Sí, con permiso de Accesibilidad</td><td>Sí (Ctrl+V)</td><td>X11 sí. Wayland: soporte experimental en <code>enigo</code>, sin garantías</td></tr>
+<tr><td>Ícono de bandeja</td><td>Sí</td><td>Sí</td><td>Necesita <code>libayatana-appindicator</code>; en GNOME hace falta una extensión. Los clicks al ícono no llegan, por eso el menú tiene "Configuración"</td></tr>
+<tr><td>Arranque con el sistema</td><td><button type="button" class="term" popovertarget="t-launchagent">LaunchAgent</button></td><td>Registro de Windows</td><td>Archivo <code>.desktop</code> en autostart</td></tr>
+<tr><td>Combinación de apertura</td><td>⌃⌥O</td><td>Ctrl+Shift+Alt+O</td><td>Ctrl+Shift+Alt+O</td></tr>
+<tr><td>Instalador</td><td><code>.app</code> / <code>.dmg</code></td><td><code>.msi</code> / <code>.exe</code> (NSIS)</td><td><code>.deb</code>, <code>.rpm</code>, <code>.AppImage</code></td></tr>
+<tr><td>Firma para distribuir</td><td>Developer ID + <button type="button" class="term" popovertarget="t-firma">notarización</button></td><td>Certificado de firma de código; sin firmar aparece SmartScreen</td><td>No obligatoria</td></tr>
+</tbody></table></div>
+
+<h3>Cómo se haría</h3>
+<ol>
+  <li><strong>Se compila en cada sistema</strong>: Tauri no hace compilación cruzada de forma práctica. Para Windows hay que estar en Windows (con las herramientas de compilación de Visual Studio) y para Linux en Linux. La solución normal es la integración continua (sección 8).</li>
+  <li><strong>Dependencias de Linux</strong> (Debian/Ubuntu):
+<pre><code>sudo apt install build-essential libwebkit2gtk-4.1-dev libxdo-dev \
+  libssl-dev libayatana-appindicator3-dev librsvg2-dev</code></pre></li>
+  <li><strong>Windows</strong> necesita WebView2, que ya viene en Windows 11 y se instala solo con el instalador en Windows 10.</li>
+  <li><strong>Formatos de empaquetado</strong>: <code>tauri.conf.json</code> tiene <code>"targets": "all"</code>, y cada sistema genera los suyos: <code>.app</code> y <code>.dmg</code> en macOS, <code>.msi</code> y <code>.exe</code> en Windows, <code>.deb</code>, <code>.rpm</code> y <code>.AppImage</code> en Linux.</li>
+  <li><strong>Lo que es solo de macOS</strong> y hay que dejar afuera en los otros: <code>scripts/sign.sh</code> y la política de activación (ya está detrás de <code>#[cfg]</code>).</li>
+  <li><strong>Pendiente en la UI</strong>: los símbolos ⌃⌥⇧ ya cambian por nombres fuera de Mac, pero habría que revisar el aspecto en Windows y Linux.</li>
+</ol>
+
+<div class="note"><p><strong>El riesgo más grande es Wayland.</strong> Muchas distribuciones de Linux ya arrancan con Wayland por defecto, y ahí un hotkey global entre apps no es posible con este enfoque. Hay que documentarlo en el README en vez de prometer soporte en Linux.</p></div>
+
+<h2 id="github">8. Publicar en GitHub con buenas prácticas</h2>
+
+<h3>Antes de subir nada</h3>
+<ul>
+  <li><strong>Revisá la política de tu empleador.</strong> El proyecto se hizo en una máquina de trabajo. Verificá tu contrato sobre propiedad intelectual y proyectos personales, y publicalo desde tu cuenta personal, no la corporativa.</li>
+  <li><strong>Secretos y datos personales:</strong> la config real vive fuera del repo (en la carpeta de configuración del sistema), así que no hay nada para filtrar. Igual, antes del primer commit, revisá con <code>git status</code> y <code>git diff --cached</code> que no entre ningún texto personal de ejemplo.</li>
+  <li><strong>Licencia:</strong> la recomendación es <code>MIT OR Apache-2.0</code>, que es lo que usa la mayor parte del ecosistema Rust (incluidas las dependencias de este proyecto, según lo que se declara en cada crate; conviene confirmarlo con <code>cargo deny</code> o <code>cargo about</code>). Quien use el código elige la que prefiera: MIT es la más simple, y Apache-2.0 suma una concesión explícita de patentes. Se publica con dos archivos, <code>LICENSE-MIT</code> y <code>LICENSE-APACHE</code>. Si preferís que las mejoras queden libres también, las alternativas son MPL-2.0 o GPL-3.0. Sin licencia, legalmente nadie puede reutilizar el código.</li>
+  <li><strong>El pulpo:</strong> la imagen que se usa de mascota y de ícono es un recurso aparte del código. Aclará quién la hizo y con qué licencia se comparte (por ejemplo CC BY 4.0), y si se generó con una herramienta de IA, decilo en el README.</li>
+</ul>
+
+<h3>Qué debería tener el repositorio</h3>
+<div class="tablewrap"><table>
+<thead><tr><th>Archivo</th><th>Para qué</th></tr></thead>
+<tbody>
+<tr><td><code>README.md</code></td><td>Qué hace, una captura o GIF, cómo instalarlo, permisos que pide y por qué, limitaciones conocidas (Wayland, AltGr), cómo compilarlo.</td></tr>
+<tr><td><code>LICENSE</code></td><td>La licencia elegida.</td></tr>
+<tr><td><code>CHANGELOG.md</code></td><td>Cambios por versión (formato <em>Keep a Changelog</em>).</td></tr>
+<tr><td><code>SECURITY.md</code></td><td>Cómo reportar una vulnerabilidad. Relevante porque la app simula teclado y toca el portapapeles.</td></tr>
+<tr><td><code>CONTRIBUTING.md</code></td><td>Cómo correr los tests y qué se espera de un PR.</td></tr>
+<tr><td><code>.github/workflows/ci.yml</code></td><td>Verificaciones automáticas en cada push y PR.</td></tr>
+<tr><td><code>.github/workflows/release.yml</code></td><td>Generar los instaladores al crear una etiqueta de versión.</td></tr>
+<tr><td><code>.github/dependabot.yml</code></td><td>PRs automáticos para actualizar dependencias de Cargo y de las Actions.</td></tr>
+<tr><td><code>.github/ISSUE_TEMPLATE/</code></td><td>Plantilla que pida sistema operativo, versión y pasos para reproducir.</td></tr>
+</tbody></table></div>
+
+<h3>Git</h3>
+<ul>
+  <li>El repo todavía <strong>no tiene commits</strong>, así que es el momento ideal de ordenar. Renombrá la rama: <code>git branch -M main</code>.</li>
+  <li>Commits chicos y con mensajes claros (por ejemplo <em>Conventional Commits</em>: <code>feat:</code>, <code>fix:</code>, <code>docs:</code>).</li>
+  <li><code>Cargo.lock</code> se sube (es una app). <code>target/</code> y <code>gen/</code> no.</li>
+  <li><button type="button" class="term" popovertarget="t-semver">Versionado semántico</button> con etiquetas <code>v0.1.0</code>. La versión está en dos lugares, <code>Cargo.toml</code> y <code>tauri.conf.json</code>, y hay que mantenerlas iguales.</li>
+</ul>
+
+<h3>Integración continua y releases: ya están en el repo</h3>
+<p>Son dos archivos en <code>.github/workflows/</code>. <strong>Todavía no corrieron</strong>: la primera ejecución en GitHub es la prueba, y es esperable que algo falle en Windows o Linux, porque nunca se compiló ahí.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Archivo</th><th>Cuándo corre</th><th>Qué hace</th></tr></thead>
+<tbody>
+<tr><td><code>ci.yml</code></td><td>En cada push a <code>main</code> o <code>master</code> y en cada PR</td><td>Verifica el formato (<code>cargo fmt --check</code>) y después, en <strong>macOS, Windows y Linux</strong>, corre <code>cargo clippy -D warnings</code> y <code>cargo test</code>. Con <code>fail-fast: false</code>, un sistema roto no esconde el resultado de los otros.</td></tr>
+<tr><td><code>release.yml</code></td><td>Al subir una etiqueta <code>v*</code></td><td>Primero comprueba que la etiqueta, <code>Cargo.toml</code> y <code>tauri.conf.json</code> tengan la misma versión. Después arma los instaladores para macOS (Apple Silicon e Intel), Windows y Linux con <code>tauri-action</code> y los sube a un release <strong>en borrador</strong>.</td></tr>
+</tbody></table></div>
+<p>Para sacar una versión: subí la versión en <code>Cargo.toml</code> y en <code>tauri.conf.json</code>, hacé commit y después <code>git tag v0.1.0 &amp;&amp; git push --tags</code>. Cuando terminen los trabajos, revisá el borrador en GitHub y publicalo a mano.</p>
+
+<h3>Configuración del repositorio en GitHub</h3>
+<ul>
+  <li>Protegé <code>main</code>: exigir que pase el CI y revisión antes de mergear.</li>
+  <li>Activá <button type="button" class="term" popovertarget="t-dependabot">Dependabot</button> y las alertas de seguridad. Sumá <code>cargo audit</code> o <code>cargo deny</code> al CI.</li>
+  <li>Completá la descripción y los <em>topics</em> (<code>rust</code>, <code>tauri</code>, <code>text-expander</code>).</li>
+</ul>
+
+<h3>Firma e instalación</h3>
+<div class="note"><p>Sin firma, los instaladores se pueden usar pero el sistema muestra advertencias: Gatekeeper en macOS (se resuelve con una cuenta de Apple Developer y notarización) y SmartScreen en Windows (se resuelve con un certificado de firma de código). Para un proyecto personal es razonable lanzar sin firmar y explicar en el README cómo abrirlo.</p></div>
+
+<h2 id="correr">9. Comandos</h2>
+<pre><code># desarrollo
+cargo run                                  # arranca la app (ojo: los permisos van a tu terminal)
+cargo test                                 # corre los tests
+cargo fmt && cargo clippy --all-targets    # formato y lints
+
+# empaquetar (macOS)
+npx @tauri-apps/cli@2 build --bundles app   # solo el .app (sin el .dmg); sale en target/release/bundle/macos/
+./scripts/sign.sh                          # firma estable para conservar el permiso de Accesibilidad
+
+# regenerar íconos desde la imagen original
+npx @tauri-apps/cli@2 icon assets/octopus.png -o icons
+
+# config del usuario (macOS)
+~/Library/Application Support/dev.octopus.app/octopus.json</code></pre>
+
+<h2 id="ejercicios">10. Ejercicios para seguir aprendiendo</h2>
+<ol>
+  <li><strong>Cambiar de plantilla desde la bandeja.</strong> Agregá al menú un ítem por plantilla. Practicás cerrar sobre datos, el estado compartido y reconstruir un menú.</li>
+  <li><strong>Reemplazar <code>eprintln!</code> por <code>log</code>.</strong> Sumá el crate, un nivel por entorno y un archivo de registro.</li>
+  <li><strong>Quitar el <code>sleep(350)</code>.</strong> Consultá el estado de los modificadores y esperá a que se suelten. Es un buen ejercicio de FFI y de cómo medir en vez de adivinar.</li>
+  <li><strong>Errores tipados.</strong> Reemplazá <code>Result&lt;_, String&gt;</code> por un <code>enum</code> con <code>thiserror</code> y mapeá cada variante a un mensaje de la UI.</li>
+  <li><strong>Exportar e importar plantillas.</strong> Un comando que lea y escriba un JSON elegido por el usuario. Practicás validación de entradas externas.</li>
+  <li><strong>Un test para el portapapeles.</strong> Extraé <code>save_clipboard</code> y <code>restore_clipboard</code> a un módulo que reciba el portapapeles como parámetro (un <em>trait</em>), para probarlos con uno falso sin tocar el del sistema.</li>
+  <li><strong>Partir <code>main.rs</code> en módulos</strong> (<code>config</code>, <code>paste</code>, <code>tray</code>) y ver cómo cambian la visibilidad (<code>pub</code>) y los <code>use</code>.</li>
+  <li><strong>Escribir el <code>ci.yml</code> de la sección 8</strong>, subirlo y ver qué rompe en Windows y Linux. Esa lista es el verdadero estado del soporte multiplataforma.</li>
+</ol>
+
+<h2 class="glossary-title">Glosario</h2>
+<div popover id="t-tauri" aria-label="Tauri"><strong class="pt">Tauri</strong><p><b>Qué es.</b> Un framework para armar apps de escritorio con el motor en Rust y la interfaz en HTML, CSS y JavaScript, mostrada en el webview del sistema. También genera los instaladores.</p><p><b>Por qué acá.</b> El binario queda en unos 12 MB, sin traer un navegador entero como Electron, y el mismo proyecto apunta a macOS, Windows y Linux. Ya resuelve la bandeja, los hotkeys, el autoarranque y el empaquetado.</p></div>
+<div popover id="t-empaquetado" aria-label="Sistema de empaquetado"><strong class="pt">Sistema de empaquetado</strong><p><b>Qué es.</b> El paso que convierte el código compilado en algo que una persona puede instalar y abrir: un .app o .dmg en macOS, .msi o .exe en Windows, .deb o .AppImage en Linux. Le agrega el ícono, el nombre, el identificador (dev.octopus.app) y, si hay certificado, la firma.</p><p><b>Por qué acá.</b> Un binario suelto no tiene ícono, ni puede pedir permisos con un nombre propio, ni arrancar con el sistema, ni repartirse. En macOS además es necesario: permisos como Accesibilidad se asocian a la app empaquetada. Cada sistema usa formatos distintos y Tauri los genera desde una sola configuración. Es el equivalente a "armar el release" en otros mundos, como compilar y publicar un sitio web o construir una imagen de Docker.</p></div>
+<div popover id="t-hotkey" aria-label="Hotkey global"><strong class="pt">Hotkey global</strong><p><b>Qué es.</b> Una combinación de teclas que el sistema operativo vigila durante toda la sesión, sin importar qué app tenga el foco. La app se registra y el sistema le avisa cuando se aprieta.</p><p><b>Por qué acá.</b> Es la forma más liviana de reaccionar a una tecla: no lee el teclado ni necesita drivers. Si otra app ya registró la misma combinación, el registro falla y octopus lo marca en la fila de la tabla.</p></div>
+<div popover id="t-accesibilidad" aria-label="Permiso de Accesibilidad"><strong class="pt">Permiso de Accesibilidad</strong><p><b>Qué es.</b> Un permiso de macOS (Privacidad y seguridad, Accesibilidad) que deja a una app controlar a otras, por ejemplo mandándoles teclas.</p><p><b>Por qué acá.</b> Hace falta solo para simular el Cmd+V del pegado. Sin él, octopus igual deja el texto en el portapapeles y lo pegás vos. El permiso queda atado a la app y a su firma, por eso firmamos con un identificador estable.</p></div>
+<div popover id="t-hilo" aria-label="Hilo (thread)"><strong class="pt">Hilo (thread)</strong><p><b>Qué es.</b> Una línea de ejecución independiente dentro del programa. El hilo principal atiende la interfaz y los eventos, y otros hilos trabajan en paralelo.</p><p><b>Por qué acá.</b> Pegar requiere esperar (350 ms antes y 250 ms después). Si esperáramos en el hilo principal, la app se congelaría. Por eso paste lanza su propio hilo.</p></div>
+<div popover id="t-webview" aria-label="Webview"><strong class="pt">Webview</strong><p><b>Qué es.</b> Un navegador embebido que trae el sistema (WebKit en macOS, WebView2 en Windows, WebKitGTK en Linux) y que dibuja la ventana usando HTML y CSS.</p><p><b>Por qué acá.</b> Evita empaquetar un Chromium propio, que es lo que hace pesada a Electron. El costo es que puede haber pequeñas diferencias de aspecto entre sistemas.</p></div>
+<div popover id="t-driver" aria-label="Driver"><strong class="pt">Driver</strong><p><b>Qué es.</b> Software con privilegios del sistema que se engancha al hardware. Karabiner instala uno (DriverKit) para interceptar el teclado antes que cualquier app.</p><p><b>Por qué acá.</b> Instalar drivers pide permisos de administrador y suele estar bloqueado en máquinas corporativas, justo tu caso. octopus no necesita ninguno porque usa hotkeys del sistema.</p></div>
+<div popover id="t-prestamo" aria-label="Préstamo (borrowing)"><strong class="pt">Préstamo (borrowing)</strong><p><b>Qué es.</b> Prestar un valor con &amp;valor deja usarlo sin quedárselo. El dueño original lo sigue teniendo cuando el préstamo termina.</p><p><b>Por qué acá.</b> Es el mecanismo con el que Rust evita liberar memoria dos veces o usar datos que ya no existen, sin recolector de basura. Lo verifica el compilador: si algo está mal, no compila.</p></div>
+<div popover id="t-mutex" aria-label="Mutex"><strong class="pt">Mutex</strong><p><b>Qué es.</b> De "exclusión mutua": una llave para datos compartidos entre hilos. Quien quiere leer o escribir toma la llave y la devuelve al terminar.</p><p><b>Por qué acá.</b> La lista de atajos la escribe apply (cuando guardás) y la lee el handler (cuando apretás una tecla), desde hilos distintos. Sin la llave podrían pisarse.</p></div>
+<div popover id="t-cfg" aria-label="Compilación condicional (#[cfg])"><strong class="pt">Compilación condicional (#[cfg])</strong><p><b>Qué es.</b> Un atributo que le dice al compilador: incluí este código solo si se cumple una condición, por ejemplo el sistema operativo.</p><p><b>Por qué acá.</b> Permite un mismo archivo para los tres sistemas sin preguntar en tiempo de ejecución dónde estamos. El código de los otros sistemas ni se compila.</p></div>
+<div popover id="t-serde" aria-label="serde"><strong class="pt">serde</strong><p><b>Qué es.</b> La librería estándar de hecho en Rust para convertir structs a formatos como JSON y volver.</p><p><b>Por qué acá.</b> Con #[derive(Serialize, Deserialize)] el mismo struct sirve para el archivo de config y para hablar con la interfaz, sin escribir conversiones a mano.</p></div>
+<div popover id="t-rustfmt" aria-label="rustfmt"><strong class="pt">rustfmt</strong><p><b>Qué es.</b> El formateador oficial de Rust: cargo fmt reescribe el código con un estilo único.</p><p><b>Por qué acá.</b> Evita discusiones de estilo y achica los diffs. En el CI se corre con --check para que falle si alguien no formateó.</p></div>
+<div popover id="t-clippy" aria-label="clippy"><strong class="pt">clippy</strong><p><b>Qué es.</b> Un analizador que detecta errores comunes y código poco idiomático (cargo clippy).</p><p><b>Por qué acá.</b> Atrapa cosas que compilan pero son sospechosas. En el CI se corre con -D warnings para que cualquier aviso haga fallar el build.</p></div>
+<div popover id="t-ci" aria-label="Integración continua (CI)"><strong class="pt">Integración continua (CI)</strong><p><b>Qué es.</b> Un servidor (en GitHub, GitHub Actions) que compila y prueba el proyecto automáticamente en cada cambio.</p><p><b>Por qué acá.</b> Es la forma práctica de saber si anda en Windows y Linux sin tener esas máquinas, y evita que entren cambios que rompen. También puede generar los instaladores de cada versión.</p></div>
+<div popover id="t-firma" aria-label="Firma de código y notarización"><strong class="pt">Firma de código y notarización</strong><p><b>Qué es.</b> Una firma digital que prueba quién publicó una app y que no fue alterada. En macOS además existe la notarización: Apple revisa la app. Sin firma, macOS muestra Gatekeeper y Windows muestra SmartScreen.</p><p><b>Por qué acá.</b> Hoy firmamos de forma ad-hoc con un identificador estable, solo para que macOS recuerde el permiso en tu máquina. Para repartir la app hace falta un certificado de verdad (Developer ID en Apple, certificado de firma de código en Windows).</p></div>
+<div popover id="t-wayland" aria-label="Wayland (y X11)"><strong class="pt">Wayland (y X11)</strong><p><b>Qué es.</b> El sistema gráfico moderno de Linux, que reemplaza a X11. Por seguridad no deja que una app escuche las teclas de otras.</p><p><b>Por qué acá.</b> Los hotkeys globales dependen justo de eso, así que en sesiones Wayland no funcionan (según la documentación del crate). Solo andan en X11.</p></div>
+<div popover id="t-altgr" aria-label="AltGr"><strong class="pt">AltGr</strong><p><b>Qué es.</b> En muchos teclados (español, latam, alemán) la tecla Alt derecha se llama AltGr y escribe caracteres como @ o €. Windows y Linux la tratan como Ctrl+Alt.</p><p><b>Por qué acá.</b> Si registrás Ctrl+Alt+Q como hotkey, dejás de poder escribir @. Por eso fuera de Mac la combinación de apertura lleva también Shift.</p></div>
+<div popover id="t-launchagent" aria-label="LaunchAgent"><strong class="pt">LaunchAgent</strong><p><b>Qué es.</b> Un archivo en ~/Library/LaunchAgents con el que macOS lanza programas cuando un usuario inicia sesión.</p><p><b>Por qué acá.</b> Es la forma de autoarranque que no pide permisos de administrador. En Windows se usa el registro y en Linux un .desktop en autostart; el plugin elige solo.</p></div>
+<div popover id="t-semver" aria-label="Versionado semántico"><strong class="pt">Versionado semántico</strong><p><b>Qué es.</b> Versiones con forma MAYOR.MENOR.PARCHE (por ejemplo 0.1.0). Subís MAYOR si rompés compatibilidad, MENOR si agregás funciones y PARCHE si arreglás errores.</p><p><b>Por qué acá.</b> Las etiquetas de Git como v0.1.0 disparan los releases, y quien usa la app sabe qué esperar de una actualización.</p></div>
+<div popover id="t-dependabot" aria-label="Dependabot"><strong class="pt">Dependabot</strong><p><b>Qué es.</b> Un bot de GitHub que abre PRs cuando una dependencia tiene versión nueva o una vulnerabilidad conocida.</p><p><b>Por qué acá.</b> Con decenas de crates indirectos, mantener Cargo.lock al día a mano no escala. El CI valida cada PR antes de aceptarlo.</p></div>
+<div popover id="t-cargo" aria-label="Cargo y crates"><strong class="pt">Cargo y crates</strong><p><b>Qué es.</b> Cargo es el gestor de paquetes y herramienta de compilación de Rust: baja dependencias, compila, corre tests y formatea. Las dependencias se llaman crates.</p><p><b>Por qué acá.</b> Cargo.toml lista lo que querés y Cargo.lock fija las versiones exactas, así que con un solo comando (cargo run) el proyecto compila igual en cualquier máquina.</p></div>
+
+<footer>Escrita por Claude para una persona que recién empieza con Rust. Describe el estado del repo al momento de escribirla. Si el código cambia, conviene actualizarla junto con él.</footer>
+</main>
+</div>
+<script>
+// Posiciona cada globo junto al término que lo abrió; sin esto el popover aparece centrado.
+let last;
+addEventListener('click', e => { last = e.target.closest('.term') || last; }, true);
+addEventListener('toggle', e => {
+  const p = e.target;
+  if (!p.matches('[popover]') || e.newState !== 'open' || !last) return;
+  const r = last.getBoundingClientRect(), pw = p.offsetWidth, ph = p.offsetHeight, m = 12;
+  const left = Math.max(m, Math.min(r.left, innerWidth - pw - m));
+  const below = r.bottom + 8, top = below + ph > innerHeight - m && r.top - ph - 8 > m ? r.top - ph - 8 : below;
+  p.style.left = left + 'px'; p.style.top = Math.max(m, top) + 'px';
+}, true);
+</script>
+

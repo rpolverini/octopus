@@ -1,0 +1,65 @@
+name: Release
+
+# Se dispara al subir una etiqueta de versión, por ejemplo: git tag v0.1.0 && git push --tags
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  version:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: La etiqueta, Cargo.toml y tauri.conf.json tienen que coincidir
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          cargo_v=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          conf_v=$(grep -m1 '"version"' tauri.conf.json | cut -d'"' -f4)
+          echo "etiqueta=$tag  Cargo.toml=$cargo_v  tauri.conf.json=$conf_v"
+          [ "$tag" = "$cargo_v" ] && [ "$tag" = "$conf_v" ]
+
+  release:
+    needs: version
+    permissions:
+      contents: write # para crear el release y subir los instaladores
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, target: aarch64-apple-darwin }
+          - { os: macos-latest, target: x86_64-apple-darwin }
+          - { os: ubuntu-22.04, target: "" }
+          - { os: windows-latest, target: "" }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencias de Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libxdo-dev \
+            libayatana-appindicator3-dev librsvg2-dev libssl-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # el proyecto no tiene package.json: usamos el CLI de Tauri vía npx (Node ya viene en los runners)
+          tauriScript: npx --yes @tauri-apps/cli@2
+          args: ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
+          tagName: ${{ github.ref_name }}
+          releaseName: octopus ${{ github.ref_name }}
+          releaseDraft: true # queda como borrador: lo revisás y lo publicás a mano
+          releaseBody: |
+            Instaladores sin firmar, así que el sistema muestra una advertencia la primera vez.
+            - macOS: click derecho sobre la app, Abrir. Después hay que darle permiso de Accesibilidad.
+            - Windows: SmartScreen, Más información, Ejecutar de todos modos.
+            - Linux: los atajos globales solo funcionan en sesiones X11 (no en Wayland).
