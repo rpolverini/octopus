@@ -122,7 +122,7 @@
 </div>
 <p class="sub">Los términos con subrayado punteado se explican al tocarlos.</p>
 
-<div class="note"><p><strong>Estado, con honestidad.</strong> Los dos workflows están escritos y son sintácticamente válidos, pero <strong>todavía no corrieron en GitHub</strong>. Nunca se compiló octopus en Windows ni en Linux, así que es esperable que la primera ejecución muestre fallos. Los escribió Claude para alguien que recién empieza con Rust y con GitHub Actions: leelos con ojo crítico.</p></div>
+<div class="note"><p><strong>Estado, con honestidad.</strong> <code>ci.yml</code> <strong>ya corrió en GitHub</strong> (20 de noviembre de 2026) y pasó en macOS, Windows y Linux: formato, <code>clippy</code> con los avisos como error y tests. <code>release.yml</code> <strong>todavía no corrió</strong>, así que nunca se generó un instalador. Y compilar sin errores no es lo mismo que funcionar: nadie abrió la app en Windows ni en Linux. Los escribió Claude para alguien que recién empieza con Rust y con GitHub Actions: leelos con ojo crítico.</p></div>
 
 <h2 id="que">1. Qué es y qué problema resuelve</h2>
 <p>Son dos ideas distintas que suelen nombrarse juntas:</p>
@@ -340,7 +340,7 @@ jobs:
 <div class="tablewrap"><table>
 <thead><tr><th>Falta</th><th>Consecuencia</th></tr></thead>
 <tbody>
-<tr><td>No se ejecutó ni una vez</td><td>No sabemos si compila en Windows y Linux. Es la principal incógnita.</td></tr>
+<tr><td><code>release.yml</code> no corrió</td><td>No sabemos si el empaquetado genera instaladores correctos en cada sistema. El <code>tauriScript</code> con <code>npx</code> está sin probar. Es la principal incógnita que queda.</td></tr>
 <tr><td>No prueba la app en funcionamiento</td><td>El CI compila y corre tests unitarios, pero no abre la ventana ni aprieta un atajo. Eso sigue siendo manual y por sistema.</td></tr>
 <tr><td>Los instaladores no están firmados</td><td>Gatekeeper en macOS y SmartScreen en Windows van a avisar. En macOS, además, cada versión nueva pide de nuevo el permiso de Accesibilidad.</td></tr>
 <tr><td>Linux solo en X11</td><td>Los atajos globales no funcionan en Wayland. El CI no puede detectar eso: compilar no es lo mismo que funcionar.</td></tr>
@@ -375,7 +375,7 @@ git push --delete origin v0.1.0</code></pre>
 <p>Y descartar el release en borrador desde GitHub. Para la primera prueba conviene una etiqueta como <code>v0.1.0-rc1</code>, pero entonces la versión de <code>Cargo.toml</code> y de <code>tauri.conf.json</code> también tiene que ser <code>0.1.0-rc1</code>, porque el chequeo exige que coincidan.</p>
 
 <h2 id="falla">10. Si falla</h2>
-<p>Son hipótesis razonables, no fallos confirmados: nada de esto corrió todavía. En la pestaña <strong>Actions</strong> de GitHub, cada sistema tiene su propio registro.</p>
+<p>Son hipótesis razonables, no fallos confirmados. El CI ya pasó en los tres sistemas con el código actual, así que las filas de compilación (<code>clippy</code> y <code>enigo</code>) no ocurrieron hoy: quedan como guía para cambios futuros. Lo que sigue sin probarse es <code>release.yml</code>. En la pestaña <strong>Actions</strong> de GitHub, cada sistema tiene su propio registro.</p>
 <div class="tablewrap"><table>
 <thead><tr><th>Síntoma probable</th><th>Dónde</th><th>Causa probable</th></tr></thead>
 <tbody>
@@ -412,7 +412,7 @@ git push --delete origin v0.1.0</code></pre>
 <div popover id="t-pin" aria-label="Fijar por hash de commit"><strong class="pt">Fijar por hash de commit</strong><p><b>Qué es.</b> Referenciar una acción por su commit exacto (uses: dueño/acción@a1b2c3…) en vez de por una etiqueta como @v4.</p><p><b>Por qué acá.</b> Las etiquetas pueden moverse: quien controle el repo de la acción podría cambiar lo que ejecuta tu CI. El hash no cambia. El costo es tener que actualizarlo, y Dependabot lo automatiza.</p></div>
 
 
-<footer>Escrito por Claude para una persona que recién empieza con Rust y con GitHub Actions. Describe el estado del repo al escribirlo, con los workflows todavía sin ejecutar.</footer>
+<footer>Escrito por Claude para una persona que recién empieza con Rust y con GitHub Actions. Describe el estado del repo al escribirlo: <code>ci.yml</code> verificado en los tres sistemas y <code>release.yml</code> todavía sin ejecutar.</footer>
 </main>
 </div>
 <script>

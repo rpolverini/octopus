@@ -386,12 +386,13 @@ tauri = { version = "2.12.7", features = ["tray-icon"] }</code></pre>
 <tr><td>Tiempos fijos con <code>sleep</code></td><td><span class="warn">Pendiente</span></td><td>350 ms y 250 ms son estimaciones. Más robusto: consultar si los modificadores siguen apretados y recién ahí pegar.</td></tr>
 <tr><td>Errores tipados</td><td><span class="warn">Pendiente</span></td><td>Reemplazar <code>String</code> por un <code>enum</code> con <code>thiserror</code> si los comandos crecen.</td></tr>
 <tr><td>Config en texto plano</td><td><span class="warn">Aceptable hoy</span></td><td>Son datos de prueba. Si se guardara algo sensible hay que cifrarlo o usar el llavero del sistema.</td></tr>
-<tr><td><button type="button" class="term" popovertarget="t-ci">Integración continua</button></td><td><span class="warn">Escrita, sin probar</span></td><td>Los workflows están en <code>.github/workflows/</code> (sección 8). Hasta que corran en GitHub no sabemos si compila en Windows y Linux.</td></tr>
-<tr><td>Probado en Windows y Linux</td><td><span class="warn">Pendiente</span></td><td>Solo se compiló y probó en macOS.</td></tr>
+<tr><td><button type="button" class="term" popovertarget="t-ci">Integración continua</button></td><td><span class="ok">Hecho</span> para <code>ci.yml</code></td><td><code>ci.yml</code> corrió el 20 de noviembre de 2026 y pasó en macOS, Windows y Linux (formato, <code>clippy</code> y tests). <code>release.yml</code> todavía no corrió: nunca se generó un instalador. Ver la sección 8.</td></tr>
+<tr><td>Probado en Windows y Linux</td><td><span class="warn">Parcial</span></td><td>El CI compila el código, pasa <code>clippy</code> y corre los tests en los dos sistemas. Pero <strong>la app no se abrió ni se usó</strong> en ninguno: no sabemos si los atajos, el pegado y la bandeja funcionan.</td></tr>
 </tbody></table></div>
 
 <h2 id="os">7. ¿Corre en Windows y Linux?</h2>
-<p><strong>Debería, pero no está probado.</strong> Todas las piezas (Tauri, el plugin de hotkeys, <code>arboard</code>, <code>enigo</code> y el plugin de autoarranque) tienen soporte para los tres sistemas, y el código ya separa lo específico de macOS con <code>#[cfg]</code>. Pero solo lo compilé y lo ejecuté en Mac. Tomalo como una hipótesis razonable, no como una confirmación.</p>
+<p><strong>Compila en los tres sistemas; funcionar es otra cosa.</strong> El CI de GitHub ya compiló octopus en macOS, Windows y Linux, pasó <code>clippy</code> y corrió los tests. Lo que <strong>nadie probó</strong> es la app abierta en Windows y Linux: los atajos, el pegado y la bandeja.</p>
+<p> Todas las piezas (Tauri, el plugin de hotkeys, <code>arboard</code>, <code>enigo</code> y el plugin de autoarranque) tienen soporte para los tres sistemas, y el código ya separa lo específico de macOS con <code>#[cfg]</code>. Pero solo se ejecutó en Mac. Tomalo como una hipótesis razonable, no como una confirmación.</p>
 
 <div class="tablewrap"><table>
 <thead><tr><th></th><th>macOS</th><th>Windows</th><th>Linux</th></tr></thead>
@@ -453,7 +454,7 @@ tauri = { version = "2.12.7", features = ["tray-icon"] }</code></pre>
 </ul>
 
 <h3>Integración continua y releases: ya están en el repo</h3>
-<p>Son dos archivos en <code>.github/workflows/</code>. <strong>Todavía no corrieron</strong>: la primera ejecución en GitHub es la prueba, y es esperable que algo falle en Windows o Linux, porque nunca se compiló ahí.</p>
+<p>Son dos archivos en <code>.github/workflows/</code>. <code>ci.yml</code> ya corrió y pasó en los tres sistemas. <strong><code>release.yml</code> todavía no corrió</strong>: la primera vez que se etiquete una versión es la prueba, y puede fallar algo del empaquetado.</p>
 <div class="tablewrap"><table>
 <thead><tr><th>Archivo</th><th>Cuándo corre</th><th>Qué hace</th></tr></thead>
 <tbody>
