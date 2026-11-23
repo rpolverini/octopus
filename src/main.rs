@@ -5,7 +5,16 @@ use enigo::{
     Enigo, Key, Keyboard, Settings,
 };
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf, sync::Mutex, thread, time::Duration};
+use std::{
+    fs,
+    path::PathBuf,
+    sync::{
+        Mutex,
+        atomic::{AtomicBool, Ordering::Relaxed},
+    },
+    thread,
+    time::Duration,
+};
 use tauri::{
     AppHandle, Manager, WindowEvent,
     menu::{Menu, MenuItem},
@@ -236,6 +245,92 @@ fn set_autostart(app: AppHandle, on: bool) -> Result<(), String> {
     if on { a.enable() } else { a.disable() }.map_err(|e| e.to_string())
 }
 
+/// Invertir el scroll solo del mouse con rueda (no del trackpad). Se guarda como un archivo vacío.
+static INVERT_MOUSE: AtomicBool = AtomicBool::new(false);
+
+fn invert_flag(app: &AppHandle) -> PathBuf {
+    config_path(app).with_file_name("invert-mouse-scroll")
+}
+
+/// Arranca (una sola vez) el hilo con el event tap. Falla si falta el permiso de Accesibilidad.
+#[cfg(target_os = "macos")]
+fn start_scroll_tap() -> Result<(), String> {
+    use core_graphics::event::{
+        CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement, CGEventType,
+        CallbackResult, EventField as F,
+    };
+    static STARTED: AtomicBool = AtomicBool::new(false);
+    if STARTED.load(Relaxed) {
+        return Ok(());
+    }
+    let (tx, rx) = std::sync::mpsc::channel();
+    let tx2 = tx.clone();
+    thread::spawn(move || {
+        let r = CGEventTap::with_enabled(
+            CGEventTapLocation::Session,
+            CGEventTapPlacement::HeadInsertEventTap,
+            CGEventTapOptions::Default,
+            vec![CGEventType::ScrollWheel],
+            |_, _, ev| {
+                // El trackpad (y el Magic Mouse) mandan scroll "continuo"; la rueda USB no.
+                if INVERT_MOUSE.load(Relaxed)
+                    && ev.get_integer_value_field(F::SCROLL_WHEEL_EVENT_IS_CONTINUOUS) == 0
+                {
+                    // Leer todo antes de escribir: al escribir un campo macOS recalcula los otros.
+                    let i = F::SCROLL_WHEEL_EVENT_DELTA_AXIS_1;
+                    let (fx, pt) = (
+                        F::SCROLL_WHEEL_EVENT_FIXED_POINT_DELTA_AXIS_1,
+                        F::SCROLL_WHEEL_EVENT_POINT_DELTA_AXIS_1,
+                    );
+                    let (vi, vf, vp) = (
+                        ev.get_integer_value_field(i),
+                        ev.get_double_value_field(fx),
+                        ev.get_double_value_field(pt),
+                    );
+                    ev.set_integer_value_field(i, -vi);
+                    ev.set_double_value_field(fx, -vf);
+                    ev.set_double_value_field(pt, -vp);
+                }
+                CallbackResult::Keep
+            },
+            || {
+                let _ = tx.send(Ok(()));
+                core_foundation::runloop::CFRunLoop::run_current();
+            },
+        );
+        if r.is_err() {
+            let _ = tx2.send(Err(
+                "Falta el permiso de Accesibilidad: activalo para octopus en Ajustes del Sistema → Privacidad y seguridad → Accesibilidad, y volvé a probar.".to_string(),
+            ));
+        }
+    });
+    let r = rx.recv().map_err(|e| e.to_string())?;
+    STARTED.store(r.is_ok(), Relaxed);
+    r
+}
+
+#[cfg(not(target_os = "macos"))]
+fn start_scroll_tap() -> Result<(), String> {
+    Err("Solo disponible en macOS".into())
+}
+
+#[tauri::command]
+fn get_invert_mouse(app: AppHandle) -> bool {
+    invert_flag(&app).exists()
+}
+
+#[tauri::command]
+fn set_invert_mouse(app: AppHandle, on: bool) -> Result<(), String> {
+    if on {
+        start_scroll_tap()?;
+        fs::write(invert_flag(&app), "").map_err(|e| e.to_string())?;
+    } else {
+        let _ = fs::remove_file(invert_flag(&app));
+    }
+    INVERT_MOUSE.store(on, Relaxed);
+    Ok(())
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(State::default())
@@ -272,7 +367,9 @@ fn main() {
             get_config,
             save_config,
             get_autostart,
-            set_autostart
+            set_autostart,
+            get_invert_mouse,
+            set_invert_mouse
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -280,6 +377,10 @@ fn main() {
 
             let handle = app.handle().clone();
             let _ = apply(&handle, &load(&handle));
+            if invert_flag(&handle).exists() {
+                // sin permiso falla en silencio; la pestaña lo muestra al reintentar
+                INVERT_MOUSE.store(start_scroll_tap().is_ok(), Relaxed);
+            }
 
             let menu = Menu::with_items(
                 app,

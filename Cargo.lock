@@ -2420,6 +2420,8 @@ name = "octopus"
 version = "0.1.0"
 dependencies = [
  "arboard",
+ "core-foundation",
+ "core-graphics",
  "enigo",
  "serde",
  "serde_json",

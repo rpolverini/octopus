@@ -78,6 +78,12 @@
   .tab .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
   .tab-input { margin: 4px 0; width: 130px; height: 28px; padding: 0 8px; background: var(--bg); border: 1px solid var(--accent); border-radius: var(--radius); }
 
+  #tabs .extra { margin-left: auto; }
+  #extras { padding: 20px; }
+  #extras label { display: flex; align-items: flex-start; gap: 10px; max-width: 60ch; cursor: pointer; }
+  #extras input { accent-color: var(--accent); margin: 2px 0 0; }
+  #extras small { display: block; color: var(--muted); }
+
   /* template bar */
   #plantbar { display: flex; align-items: center; gap: 8px; padding: 10px 20px; }
   #status { margin-right: auto; color: var(--muted); display: flex; align-items: center; gap: 8px; }
@@ -128,6 +134,13 @@
 
 <div id="tabs" role="tablist" aria-label="Plantillas"></div>
 
+<section id="extras" hidden>
+  <label><input type="checkbox" id="invmouse">
+    <span>Invertir el scroll del mouse (no del trackpad)
+      <small>Para usar scroll natural en el trackpad y el sentido clásico en un mouse con rueda. Necesita el permiso de Accesibilidad. El Magic Mouse cuenta como trackpad.</small></span>
+  </label>
+</section>
+
 <main>
   <div id="plantbar">
     <div id="status"></div>
@@ -163,7 +176,7 @@ const isMac = /Mac/i.test(navigator.platform || navigator.userAgent);
 const MODS = isMac ? { Ctrl: '⌃', Alt: '⌥', Shift: '⇧', Cmd: '⌘' } : { Ctrl: 'Ctrl', Alt: 'Alt', Shift: 'Shift', Cmd: 'Win' };
 const KEYS = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Space: 'Espacio', Minus: '-', Equal: '=', Comma: ',', Period: '.', Slash: '/', Semicolon: ';', Quote: "'", Backquote: '`', Backslash: '\\', BracketLeft: '[', BracketRight: ']' };
 const TRASH = '<svg viewBox="0 0 16 16"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.5 8.5h6l.5-8.5"/></svg>';
-let cfg, cur = 0, openCombo = '', dirty = false, serverErrors = {}, msgTimer, armed;
+let cfg, cur = 0, extras = false, openCombo = '', dirty = false, serverErrors = {}, msgTimer, armed;
 
 /* ---------- helpers ---------- */
 function keycaps(combo) {
@@ -261,7 +274,7 @@ function newShortcut() {
 
 function syncEmpty() {
   const none = !rows.children.length;
-  $('grid').hidden = none; $('empty').hidden = !none; $('add').hidden = none;
+  $('grid').hidden = none; $('empty').hidden = !none; $('add').hidden = none || extras;
 }
 
 // Vuelca lo que se ve en pantalla a la plantilla actual.
@@ -273,13 +286,15 @@ function collect() {
 
 /* ---------- plantillas ---------- */
 function render() {
+  $('extras').hidden = !extras;
+  document.querySelector('main').hidden = $('save').hidden = extras;
   rows.replaceChildren();
   cfg.profiles[cur].entries.forEach(e => addRow(e));
   syncEmpty(); renderTabs(); markRowErrors();
 }
 
 function selectTab(i, focus) {
-  collect(); cur = i; render();
+  collect(); cur = i; extras = false; render();
   if (focus) document.querySelector('.tab[aria-selected="true"]')?.focus();
 }
 
@@ -288,13 +303,13 @@ function renderTabs() {
   cfg.profiles.forEach((p, i) => {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'tab'; b.setAttribute('role', 'tab');
-    b.setAttribute('aria-selected', i === cur); b.tabIndex = i === cur ? 0 : -1;
+    b.setAttribute('aria-selected', !extras && i === cur); b.tabIndex = i === cur ? 0 : -1;
     if (i === cfg.active) {
       const d = document.createElement('span'); d.className = 'dot'; b.append(d);
       const s = document.createElement('span'); s.className = 'sr'; s.textContent = 'Activa: '; b.append(s);
     }
     b.append(document.createTextNode(p.name));
-    b.onclick = () => { if (i !== cur) selectTab(i); };
+    b.onclick = () => { if (extras || i !== cur) selectTab(i); };
     b.ondblclick = () => rename(i);
     b.onkeydown = e => {
       const n = { ArrowRight: i + 1, ArrowLeft: i - 1 }[e.key];
@@ -310,6 +325,13 @@ function renderTabs() {
     cur = cfg.profiles.length - 1; setDirty(true); render(); rename(cur);
   };
   box.append(plus);
+  if (isMac) {
+    const x = document.createElement('button');
+    x.type = 'button'; x.className = 'tab extra'; x.setAttribute('role', 'tab');
+    x.setAttribute('aria-selected', extras); x.textContent = 'Funciones adicionales';
+    x.onclick = () => { collect(); extras = true; render(); };
+    box.append(x);
+  }
   renderBar();
 }
 
@@ -387,6 +409,11 @@ $('auto').onchange = async e => {
   catch (err) { e.target.checked = !e.target.checked; say(String(err), 'err'); }
 };
 
+$('invmouse').onchange = async e => {
+  try { await invoke('set_invert_mouse', { on: e.target.checked }); say(e.target.checked ? 'Scroll del mouse invertido' : 'Scroll del mouse normal', 'ok'); }
+  catch (err) { e.target.checked = !e.target.checked; say(String(err), 'err'); }
+};
+
 addEventListener('keydown', e => {
   if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); if (!$('save').disabled) save('Guardado'); }
 });
@@ -394,6 +421,7 @@ addEventListener('keydown', e => {
 /* ---------- arranque ---------- */
 invoke('open_combo').then(c => { openCombo = c; $('open').append(keycaps(c)); markRowErrors(); });
 invoke('get_autostart').then(on => $('auto').checked = on);
+invoke('get_invert_mouse').then(on => $('invmouse').checked = on);
 invoke('get_config').then(c => { cfg = c; cur = c.active; render(); });
 </script>
 </html>
