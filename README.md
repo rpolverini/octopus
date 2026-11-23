@@ -28,7 +28,9 @@ Los atajos se guardan en el archivo `octopus.json` de la carpeta de configuraci�
 
 ## Aprender con este código
 
-Las guías que explican este proyecto están en **[Learning with Octopus](https://github.com/rpolverini/learning-with-octopus)**. Cuando cambia el código que ellas describen, un workflow abre una issue para revisarlas.
+Este repo también sirve como un mini curso de Rust: las guías explican qué hace cada archivo, por qué se decidió cada cosa así y los conceptos de Rust sobre código real, además de cómo funciona el CI/CD. **Leelas en <https://rpolverini.github.io/learning-with-octopus/>**.
+
+El código fuente de las guías está en [learning-with-octopus](https://github.com/rpolverini/learning-with-octopus). Cuando cambia el código que ellas describen, un workflow abre una issue para revisarlas.
 
 ## Licencias
 
