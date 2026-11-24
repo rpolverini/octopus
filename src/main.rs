@@ -198,7 +198,7 @@ fn dlog(msg: &str) {
 }
 
 fn debug_flag() -> PathBuf {
-    LOG.get().unwrap().with_file_name("debug-log")
+    LOG.get().unwrap().with_file_name("debug-log-off")
 }
 
 #[tauri::command]
@@ -213,10 +213,11 @@ fn get_debug_log() -> (bool, String) {
 
 #[tauri::command]
 fn set_debug_log(on: bool) -> Result<(), String> {
+    // activado por defecto: el archivo marca que el usuario lo apagó
     if on {
-        fs::write(debug_flag(), "").map_err(|e| e.to_string())?;
-    } else {
         let _ = fs::remove_file(debug_flag());
+    } else {
+        fs::write(debug_flag(), "").map_err(|e| e.to_string())?;
     }
     DEBUG.store(on, Relaxed);
     if on {
@@ -477,7 +478,7 @@ fn main() {
 
             let handle = app.handle().clone();
             let _ = LOG.set(config_path(&handle).with_file_name("octopus.log"));
-            DEBUG.store(debug_flag().exists(), Relaxed);
+            DEBUG.store(!debug_flag().exists(), Relaxed);
             let prev = std::panic::take_hook();
             std::panic::set_hook(Box::new(move |i| {
                 dlog(&format!("PANIC: {i}"));
