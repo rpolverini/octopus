@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// En release, Windows no abre la ventana de consola; en debug se mantiene para ver los eprintln!.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use arboard::{Clipboard, ImageData};
 use enigo::{
     Direction::{Click, Press, Release},
