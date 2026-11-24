@@ -433,7 +433,7 @@ fn main() {
         .manage(State::default())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
-            None,
+            Some(vec!["--autostart"]),
         ))
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
@@ -485,6 +485,10 @@ fn main() {
                 prev(i);
             }));
             dlog("arranque");
+            // Abierta si la lanza el usuario (si no, parece que no arrancó); escondida si la lanza el login.
+            if !std::env::args().any(|a| a == "--autostart") {
+                show_window(&handle);
+            }
             let _ = apply(&handle, &load(&handle));
             if invert_flag(&handle).exists() {
                 // sin permiso falla en silencio; la pestaña lo muestra al reintentar
@@ -527,8 +531,15 @@ fn main() {
                 let _ = w.hide();
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error al iniciar octopus");
+        .build(tauri::generate_context!())
+        .expect("error al iniciar octopus")
+        .run(|_app, _ev| {
+            // macOS: abrir octopus de nuevo desde Finder/Launchpad muestra la configuración
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = _ev {
+                show_window(_app);
+            }
+        });
 }
 
 #[cfg(test)]
