@@ -139,6 +139,11 @@
     <span>Invertir el scroll del mouse (no del trackpad)
       <small>Para usar scroll natural en el trackpad y el sentido clásico en un mouse con rueda. Necesita el permiso de Accesibilidad. El Magic Mouse cuenta como trackpad.</small></span>
   </label>
+  <label><input type="checkbox" id="dbglog">
+    <span>Guardar un log para diagnosticar problemas
+      <small>Registra los atajos y pegados, sin guardar el texto de tus plantillas. <a href="#" id="logpath"></a></small></span>
+  </label>
+  <p class="ver" style="margin:.75rem 0 0;font-size:.75rem;opacity:.6">Octopus <span id="ver"></span></p>
 </section>
 
 <main>
@@ -249,7 +254,13 @@ function record(tr) {
     tr.dataset.combo = [...mods, keyName(e)].join('+');
     setDirty(true); stop();
   };
-  addEventListener('keydown', on, true);
+  $('dbglog').onchange = async e => {
+  try { await invoke('set_debug_log', { on: e.target.checked }); say(e.target.checked ? 'Log activado' : 'Log desactivado', 'ok'); }
+  catch (err) { e.target.checked = !e.target.checked; say(String(err), 'err'); }
+};
+$('logpath').onclick = e => { e.preventDefault(); invoke('reveal_log').catch(err => say(String(err), 'err')); };
+
+addEventListener('keydown', on, true);
   b.addEventListener('blur', stop);
 }
 
@@ -422,6 +433,8 @@ addEventListener('keydown', e => {
 invoke('open_combo').then(c => { openCombo = c; $('open').append(keycaps(c)); markRowErrors(); });
 invoke('get_autostart').then(on => $('auto').checked = on);
 invoke('get_invert_mouse').then(on => $('invmouse').checked = on);
+invoke('version').then(v => $('ver').textContent = 'v' + v);
+invoke('get_debug_log').then(([on, p]) => { $('dbglog').checked = on; $('logpath').textContent = p; $('logpath').title = 'Abrir la carpeta'; });
 invoke('get_config').then(c => { cfg = c; cur = c.active; render(); });
 </script>
 </html>

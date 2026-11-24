@@ -10,9 +10,10 @@ use serde::{Deserialize, Serialize};
 use std::{
     fs,
     path::PathBuf,
+    io::Write,
     sync::{
-        Mutex,
-        atomic::{AtomicBool, Ordering::Relaxed},
+        Mutex, OnceLock,
+        atomic::{AtomicBool, AtomicU64, Ordering::Relaxed},
     },
     thread,
     time::Duration,
@@ -148,8 +149,95 @@ fn restore_clipboard(cb: &mut Clipboard, saved: Saved) {
         Saved::Other => cb.clear(),
     };
     if let Err(e) = r {
-        eprintln!("paste: restore failed: {e}");
+        dlog(&format!("paste: restore failed: {e}"));
     }
+}
+
+/// Log opcional (pestaña Funciones adicionales). Vive junto a la config de cada instalación.
+static DEBUG: AtomicBool = AtomicBool::new(false);
+static LOG: OnceLock<PathBuf> = OnceLock::new();
+
+static LAST_PRUNE: AtomicU64 = AtomicU64::new(0);
+
+/// Deja solo las líneas de los últimos 2 días (cada línea empieza con `[unix]`).
+fn prune_log(p: &PathBuf, now: u64) {
+    let Ok(s) = fs::read_to_string(p) else { return };
+    let min = now.saturating_sub(2 * 24 * 3600);
+    let kept: String = s
+        .lines()
+        .filter(|l| {
+            l.strip_prefix('[')
+                .and_then(|r| r.split(']').next())
+                .and_then(|t| t.parse::<u64>().ok())
+                .is_none_or(|t| t >= min)
+        })
+        .map(|l| format!("{l}\n"))
+        .collect();
+    if kept.len() != s.len() {
+        let _ = fs::write(p, kept);
+    }
+}
+
+fn dlog(msg: &str) {
+    eprintln!("{msg}");
+    if !DEBUG.load(Relaxed) {
+        return;
+    }
+    let Some(p) = LOG.get() else { return };
+    let t = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    // al arrancar y luego como mucho una vez por hora
+    if t.saturating_sub(LAST_PRUNE.load(Relaxed)) > 3600 {
+        LAST_PRUNE.store(t, Relaxed);
+        prune_log(p, t);
+    }
+    if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(p) {
+        let _ = writeln!(f, "[{t}] {msg}");
+    }
+}
+
+fn debug_flag() -> PathBuf {
+    LOG.get().unwrap().with_file_name("debug-log")
+}
+
+#[tauri::command]
+fn version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
+
+#[tauri::command]
+fn get_debug_log() -> (bool, String) {
+    (DEBUG.load(Relaxed), LOG.get().unwrap().display().to_string())
+}
+
+#[tauri::command]
+fn set_debug_log(on: bool) -> Result<(), String> {
+    if on {
+        fs::write(debug_flag(), "").map_err(|e| e.to_string())?;
+    } else {
+        let _ = fs::remove_file(debug_flag());
+    }
+    DEBUG.store(on, Relaxed);
+    if on {
+        dlog(&format!("log activado, octopus {}", env!("CARGO_PKG_VERSION")));
+    }
+    Ok(())
+}
+
+/// Abre la carpeta del log con el explorador del sistema.
+#[tauri::command]
+fn reveal_log() -> Result<(), String> {
+    let p = LOG.get().unwrap();
+    let dir = p.parent().unwrap();
+    let _ = fs::create_dir_all(dir);
+    #[cfg(target_os = "macos")]
+    let r = std::process::Command::new("open").arg(dir).spawn();
+    #[cfg(target_os = "windows")]
+    let r = std::process::Command::new("explorer").arg(dir).spawn();
+    #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+    let r = std::process::Command::new("xdg-open").arg(dir).spawn();
+    r.map(|_| ()).map_err(|e| e.to_string())
 }
 
 /// Pega `text` en la app activa vía portapapeles y restaura el portapapeles previo.
@@ -157,9 +245,9 @@ fn paste(text: String) {
     thread::spawn(move || {
         // Esperamos a que el usuario suelte la combinación, si no se mezclan los modificadores.
         thread::sleep(Duration::from_millis(350));
-        eprintln!("paste: start");
+        dlog("paste: start");
         let Ok(mut cb) = Clipboard::new() else {
-            return eprintln!("paste: clipboard open failed");
+            return dlog("paste: clipboard open failed");
         };
         let saved = save_clipboard(&mut cb);
         if cb.set_text(text).is_err() {
@@ -170,15 +258,21 @@ fn paste(text: String) {
             ..Settings::default()
         }) {
             Ok(e) => e,
-            Err(e) => return eprintln!("paste: enigo failed: {e}"),
+            Err(e) => return dlog(&format!("paste: enigo failed: {e}")),
         };
-        eprintln!("paste: enigo ok, sending keys");
+        dlog("paste: enigo ok, sending keys");
         #[cfg(target_os = "macos")]
         let m = Key::Meta;
         #[cfg(not(target_os = "macos"))]
         let m = Key::Control;
         let _ = en.key(m, Press);
-        let _ = en.key(Key::Unicode('v'), Click);
+        // macOS: Key::Unicode consulta TSM fuera del hilo principal y el sistema aborta el proceso.
+        // 9 = kVK_ANSI_V (no depende de la distribución de teclado).
+        #[cfg(target_os = "macos")]
+        let v = Key::Other(9);
+        #[cfg(not(target_os = "macos"))]
+        let v = Key::Unicode('v');
+        let _ = en.key(v, Click);
         let _ = en.key(m, Release);
         thread::sleep(Duration::from_millis(250));
         restore_clipboard(&mut cb, saved);
@@ -357,7 +451,7 @@ fn main() {
                         .iter()
                         .find(|(s, _)| s == sc)
                         .map(|(_, t)| t.clone());
-                    eprintln!("hotkey {sc:?} matched={}", text.is_some());
+                    dlog(&format!("hotkey {sc:?} matched={}", text.is_some()));
                     if let Some(t) = text {
                         paste(t);
                     }
@@ -371,13 +465,25 @@ fn main() {
             get_autostart,
             set_autostart,
             get_invert_mouse,
-            set_invert_mouse
+            set_invert_mouse,
+            version,
+            get_debug_log,
+            set_debug_log,
+            reveal_log
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             let handle = app.handle().clone();
+            let _ = LOG.set(config_path(&handle).with_file_name("octopus.log"));
+            DEBUG.store(debug_flag().exists(), Relaxed);
+            let prev = std::panic::take_hook();
+            std::panic::set_hook(Box::new(move |i| {
+                dlog(&format!("PANIC: {i}"));
+                prev(i);
+            }));
+            dlog("arranque");
             let _ = apply(&handle, &load(&handle));
             if invert_flag(&handle).exists() {
                 // sin permiso falla en silencio; la pestaña lo muestra al reintentar
@@ -427,6 +533,15 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn prune_keeps_two_days() {
+        let p = std::env::temp_dir().join("octopus-prune-test.log");
+        fs::write(&p, "[100] viejo\n[900000] nuevo\nsin fecha\n").unwrap();
+        prune_log(&p, 1_000_000);
+        assert_eq!(fs::read_to_string(&p).unwrap(), "[900000] nuevo\nsin fecha\n");
+        let _ = fs::remove_file(&p);
+    }
+
     #[test]
     fn ui_combos_parse() {
         // formatos que genera la UI: Key*/Digit* recortados, y codes tal cual
